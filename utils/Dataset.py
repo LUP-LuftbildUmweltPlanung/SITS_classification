@@ -11,7 +11,7 @@ BANDS = ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B11', 'B12']
 NORMALIZING_FACTOR = 1e-4
 PADDING_VALUE = -1
 
-class BavarianCropsDataset(torch.utils.data.Dataset):
+class Dataset(torch.utils.data.Dataset):
 
     def __init__(self, root, partition, classes, cache=True, seed=0, response = None):
         assert partition in ["test","train","valid"]

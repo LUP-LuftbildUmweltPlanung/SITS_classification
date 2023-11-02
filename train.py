@@ -8,10 +8,9 @@ from models.TransformerEncoder import TransformerEncoder
 from models.multi_scale_resnet import MSResNet
 from models.TempCNN import TempCNN
 from models.rnn import RNN
-from datasets.BavarianCrops_Dataset import BavarianCropsDataset
+from utils.Dataset import Dataset
 from utils.trainer import Trainer
 from torch.utils.data.sampler import RandomSampler, SequentialSampler
-from utils.texparser import parse_run
 from utils.logger import Logger
 from utils.scheduled_optimizer import ScheduledOptim
 import torch.optim as optim
@@ -23,11 +22,11 @@ def prepare_dataset(args):
 
     #ImbalancedDatasetSampler
 
-    valid_dataset_list = BavarianCropsDataset(root=args['data_root'], partition=args['valid_on'],
+    valid_dataset_list = Dataset(root=args['data_root'], partition=args['valid_on'],
                                                 classes=args['classes_lst'], seed=args['seed'], response=args['response'])
 
 
-    train_dataset_list = BavarianCropsDataset(root=args['data_root'], partition=args['train_on'],
+    train_dataset_list = Dataset(root=args['data_root'], partition=args['train_on'],
                                                 classes=args['classes_lst'], seed=args['seed'], response=args['response'])
 
 
