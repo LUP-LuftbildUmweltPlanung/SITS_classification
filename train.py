@@ -22,6 +22,8 @@ def prepare_dataset(args):
 
     #ImbalancedDatasetSampler
 
+	print(args,flush=True)
+
     valid_dataset_list = Dataset(root=args['data_root'], partition=args['valid_on'],
                                                 classes=args['classes_lst'], seed=args['seed'], response=args['response'])
 

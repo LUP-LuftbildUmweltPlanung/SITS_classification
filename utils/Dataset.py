@@ -27,6 +27,8 @@ class Dataset(torch.utils.data.Dataset):
         self.response = response
         self.trainids = os.path.join(self.root, "csv", partition)
         self.validids = os.path.join(self.root, "csv", partition)
+        print(self.trainids,flush=True)
+        print(self.validids,flush=True)
         self.partition = partition
 
         classes = np.array(classes)
