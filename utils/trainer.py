@@ -19,6 +19,10 @@ import copy
 from tqdm import tqdm
 
 
+import wandb
+
+
+
 class Trainer():
 
     def __init__(self,
@@ -50,6 +54,10 @@ class Trainer():
         self.early_stopping_patience = 5
         self.not_improved_epochs=0
         #self.early_stopping_metric="kappa"
+        ####self.test_file = 'test.txt' # REMOVE!
+
+        wandb.init(project="test_sits_main",config=kwargs) ##############################
+        wandb.watch(model, log_freq=100) ##################################
 
         if optimizer is None:
             self.optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
@@ -120,7 +128,10 @@ class Trainer():
                 self.snapshot(self.get_model_name())
                 print("Saving log to {}".format(self.get_log_name()))
                 self.logger.get_data().to_csv(self.get_log_name())
+                wandb.finish() ##################################
                 return self.logger
+
+        wandb.finish() ##################################
 
         return self.logger
 
@@ -221,6 +232,8 @@ class Trainer():
                 progress_bar.set_postfix(loss=stats["loss"].item(), acc=stats["accuracy"], refresh=True)
             else:
                 progress_bar.set_postfix(loss=stats["loss"].item(), acc=stats["rmse"], refresh=True)
+
+            wandb.log({"loss": loss}) ##################################
 
         return stats
 

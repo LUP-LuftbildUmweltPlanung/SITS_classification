@@ -16,13 +16,16 @@ from utils.scheduled_optimizer import ScheduledOptim
 import torch.optim as optim
 import os
 
+#from torchtnt.framework.callbacks import SystemResourcesMonitor
+#from torchtnt.utils.loggers.logger import MetricLogger
+
+
+
 
 def prepare_dataset(args):
 
 
     #ImbalancedDatasetSampler
-
-	print(args,flush=True)
 
     valid_dataset_list = Dataset(root=args['data_root'], partition=args['valid_on'],
                                                 classes=args['classes_lst'], seed=args['seed'], response=args['response'])
@@ -88,8 +91,12 @@ def train(args):
         response = args['response']
     )
 
+
+    #sysresmonitor_callback = SystemResourcesMonitor(loggers=MetricLogger)
+
     trainer = Trainer(model,traindataloader,validdataloader,**config)
     logger = trainer.fit()
+    #logger = trainer.fit(callbacks=[sysresmonitor_callback])
 
     # stores all stored values in the rootpath of the logger
     logger.save()

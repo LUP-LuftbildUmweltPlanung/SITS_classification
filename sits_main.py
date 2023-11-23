@@ -5,9 +5,9 @@ args = {
     'epochs': 150,  # number of training epochs
     'workers': 10,  # number of CPU workers to load the next batch
     #'data_root': '/uge_mount/data_test/',
-    'data_root': '/home/uros/wtd/uge/fast_data/',
+    'data_root': '../fast_data/',
     #'store': '/uge_mount/results/',  # store run logger results
-    'store': '/home/uros/wtd/uge/fast_data/results/',  # store run logger results
+    'store': '../fast_data/results/',  # store run logger results
     'valid_every_n_epochs': 1,  # skip some valid epochs for faster overall training
     'checkpoint_every_n_epochs': 2,  # save checkpoints during training
     'seed': 0,  # seed for batching and weight initialization
@@ -66,5 +66,5 @@ new_args = old_hyperparameter_config(args['model'])
 args.update(new_args)
 
 if __name__ == '__main__':
-	print(args)
+
     train(args)
