@@ -1,10 +1,12 @@
 #import argparse
 
-from train import train
+from train_optuna import train
+import optuna
+
 
 args = {
     'batchsize': 256,  # batch size
-    'epochs': 10,#150,  # number of training epochs
+    'epochs': 30,#150,  # number of training epochs
     'workers': 10,  # number of CPU workers to load the next batch
     #'data_root': '/uge_mount/data_test/',
     'data_root': '../fast_data/',
@@ -68,18 +70,17 @@ def old_hyperparameter_config(model):#,weight_decay,dropout,learning_rate):
 
 if __name__ == '__main__':
 
-	#parser = argparse.ArgumentParser(description='Train.')
-	#parser.add_argument('--weight_decay', dest='accumulate', action='store_const',
-	#					const=sum, default=max,
-	#					help='sum the integers (default: find the max)')
 
-	#comm_args = parser.parse_args()
+    new_args = old_hyperparameter_config(args['model'])
+    args.update(new_args)
+    #args['batchsize'] = comm_args.batchsize
+    print("args:")
+    print(args)
 
-	#new_args = old_hyperparameter_config(args['model'],comm_args.weight_decay,comm_args.dropout,comm_args.learning_rate)
-	new_args = old_hyperparameter_config(args['model'])
-	args.update(new_args)
-	#args['batchsize'] = comm_args.batchsize
-	print("args:")
-	print(args)
+    storage_path = args['data_root']+'optuna/storage'
+    print(storage_path)
+    storage = optuna.storages.JournalStorage(optuna.storages.JournalFileStorage(storage_path))
+    study = optuna.create_study(direction="minimize", sampler=optuna.samplers.TPESampler(), pruner=optuna.pruners.MedianPruner(),storage=storage)
+    study.optimize(lambda trial: train(trial, args), n_trials=30)
 
-	train(args)
+    print(f"Best value: {study.best_value} (params: {study.best_params})")

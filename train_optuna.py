@@ -3,6 +3,8 @@ sys.path.append("./models")
 
 import numpy as np
 import torch
+#import torch.nn as nn
+
 
 from models.TransformerEncoder import TransformerEncoder
 from models.multi_scale_resnet import MSResNet
@@ -49,8 +51,10 @@ def prepare_dataset(args):
     return traindataloader, validdataloader
 
 
-# OPTUNA: make this one into objective
-def train(args):
+# OPTUNA: make this one into objective(trial)
+#def train(args):
+def train(trial,args):
+
     assert args['response'] in ["regression", "classification"]
     if args['response'] == "regression":
         args['classes_lst'] = [0]
@@ -62,11 +66,17 @@ def train(args):
     args['input_dims'] = traindataloader.dataset.ndims
 
     print(f"sequence_length is: {args['seqlength']}")
-    model = getModel(args)
+
+    # OPTUNA: this is the build_model_custom(trial)
+    #model = getModel(args)
+    model = getModel(trial,args)
 
     store = os.path.join(args['store'],args['model'])
 
     logger = Logger(columns=["accuracy"], modes=["train", "valid"], rootpath=store)
+
+    learning_rate=trial.suggest_loguniform('learning_rate', 1e-5, 1e-2)
+    weight_decay=trial.suggest_loguniform('weight_decay', 1e-6, 1e-3)
 
 
     if args['model'] in ["transformer"]:
@@ -78,13 +88,15 @@ def train(args):
     elif args['model'] in ["rnn", "msresnet","tempcnn"]:
         optimizer = optim.Adam(
             filter(lambda x: x.requires_grad, model.parameters()),
-            betas=(0.9, 0.999), eps=1e-08, weight_decay=args['weight_decay'], lr=args['learning_rate'])
+            #betas=(0.9, 0.999), eps=1e-08, weight_decay=args['weight_decay'], lr=args['learning_rate'])
+            betas=(0.9, 0.999), eps=1e-08, weight_decay=weight_decay, lr=learning_rate)
     else:
         raise ValueError(args['model'] + "no valid model. either 'rnn', 'msresnet', 'transformer', 'tempcnn'")
 
     config = dict(
         epochs=args['epochs'],
-        learning_rate=args['learning_rate'],
+        #learning_rate=args['learning_rate'],
+        learning_rate=learning_rate,
         store=store,
         checkpoint_every_n_epochs=args['checkpoint_every_n_epochs'],
         test_every_n_epochs=args['valid_every_n_epochs'],
@@ -96,21 +108,33 @@ def train(args):
 
     #sysresmonitor_callback = SystemResourcesMonitor(loggers=MetricLogger)
 
-    trainer = Trainer(model,traindataloader,validdataloader,**config)
+    # OPTUNA: here we need train_and_evaluate(params, model, trial)
+    #trainer = Trainer(model,traindataloader,validdataloader,**config)
+    trainer = Trainer(trial,model,traindataloader,validdataloader,**config)
     logger = trainer.fit()
     #logger = trainer.fit(callbacks=[sysresmonitor_callback])
 
     # stores all stored values in the rootpath of the logger
     logger.save()
 
+    #print("logger:")
+    #print(logger.get_data())
+    #print(type(logger.get_data()))
+    #print("last result:")
+    #print(logger.get_data().iloc[-1]['rmse'])
+
     #pth = store+"/npy/confusion_matrix_{epoch}.npy".format(epoch = args[epochs)
     #parse_run(store, args['classmapping'], outdir=store)
 
-
-    pass
+    #pass
+    if config['response'] == 'classification':
+        return logger.get_data().iloc[-1]['accuracy']
+    else:
+        return logger.get_data().iloc[-1]['rmse']
 
 # OPTUNA: this should be build_model_custom
-def getModel(args):
+#def getModel(args):
+def getModel(trial,args):
 
     if args['model'] == "rnn":
         model = RNN(input_dim=args['input_dims'], nclasses=args['nclasses'], hidden_dims=args['hidden_dims'],
@@ -124,9 +148,11 @@ def getModel(args):
 
     elif args['model'] == "transformer":
 
-        hidden_dims = args['hidden_dims'] # 256
+        #hidden_dims = args['hidden_dims'] # 256
+        hidden_dims = trial.suggest_int("hidden_dims", 128, 384, 128)# (name, low, high, step)
         n_heads = args['n_heads'] # 8
-        n_layers = args['n_layers'] # 6
+        #n_layers = args['n_layers'] # 6
+        n_layers = trial.suggest_int("n_layers", 3, 6)
         len_max_seq = args['seqlength']
         dropout = args['dropout']
         d_inner = hidden_dims*4
