@@ -9,9 +9,9 @@ args = {
     'epochs': 30,#150,  # number of training epochs
     'workers': 10,  # number of CPU workers to load the next batch
     #'data_root': '/uge_mount/data_test/',
-    'data_root': '../fast_data/',
+    'data_root': '../tmp_data/',
     #'store': '/uge_mount/results/',  # store run logger results
-    'store': '../fast_data/results/',  # store run logger results
+    'store': '../tmp_data/results/',  # store run logger results
     'valid_every_n_epochs': 1,  # skip some valid epochs for faster overall training
     'checkpoint_every_n_epochs': 2,  # save checkpoints during training
     'seed': 0,  # seed for batching and weight initialization
@@ -81,6 +81,6 @@ if __name__ == '__main__':
     print(storage_path)
     storage = optuna.storages.JournalStorage(optuna.storages.JournalFileStorage(storage_path))
     study = optuna.create_study(direction="minimize", sampler=optuna.samplers.TPESampler(), pruner=optuna.pruners.MedianPruner(),storage=storage)
-    study.optimize(lambda trial: train(trial, args), n_trials=30)
+    study.optimize(lambda trial: train(trial, args), n_trials=100)
 
     print(f"Best value: {study.best_value} (params: {study.best_params})")

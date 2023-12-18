@@ -136,27 +136,39 @@ def train(trial,args):
 #def getModel(args):
 def getModel(trial,args):
 
-    if args['model'] == "rnn":
-        model = RNN(input_dim=args['input_dims'], nclasses=args['nclasses'], hidden_dims=args['hidden_dims'],
-                              num_rnn_layers=args['num_layers'], dropout=args['dropout'], bidirectional=True, response = args['response'])
+    hidden_dims = trial.suggest_int("hidden_dims", 128, 512, 128)# (name, low, high, step)
 
-    if args['model'] == "msresnet":
-        model = MSResNet(input_channel=args['input_dims'], layers=[1, 1, 1, 1], num_classes=args['nclasses'], hidden_dims=args['hidden_dims'], response = args['response'])
+    mdl = trial.suggest_categorical("model", ["transformer", "rnn", "msresnet"])
 
-    if args['model'] == "tempcnn":
-        model = TempCNN(input_dim=args['input_dims'], nclasses=args['nclasses'], sequence_length=args['seqlength'], hidden_dims=args['hidden_dims'], kernel_size=args['kernel_size'], response = args['response'])
+    #if args['model'] == "rnn":
+    if mdl == "rnn":
+        dropout=trial.suggest_float("dropout", 0, 0.9, step=0.2)
+        n_layers = trial.suggest_int("n_layers", 3, 6)
+        model = RNN(input_dim=args['input_dims'], nclasses=args['nclasses'], hidden_dims=hidden_dims,
+                              #num_rnn_layers=args['num_layers'],
+                              num_rnn_layers=n_layers,
+                              dropout=dropout, bidirectional=True, response = args['response'])
 
-    elif args['model'] == "transformer":
+    #if args['model'] == "msresnet":
+    if mdl == "msresnet":
+        model = MSResNet(input_channel=args['input_dims'], layers=[1, 1, 1, 1], num_classes=args['nclasses'], hidden_dims=hidden_dims, response = args['response'])
+
+    #if args['model'] == "tempcnn":
+    if mdl == "tempcnn":
+        dropout=trial.suggest_float("dropout", 0, 0.9, step=0.2)
+        model = TempCNN(input_dim=args['input_dims'], nclasses=args['nclasses'], sequence_length=args['seqlength'], hidden_dims=hidden_dims,
+						dropout=dropout, kernel_size=args['kernel_size'], response = args['response'])
+
+    #elif args['model'] == "transformer":
+    elif mdl == "transformer":
 
         #hidden_dims = args['hidden_dims'] # 256
-        hidden_dims = trial.suggest_int("hidden_dims", 128, 384, 128)# (name, low, high, step)
         n_heads = args['n_heads'] # 8
         #n_layers = args['n_layers'] # 6
         n_layers = trial.suggest_int("n_layers", 3, 6)
         len_max_seq = args['seqlength']
-        dropout = args['dropout']
+        dropout=trial.suggest_float("dropout", 0, 0.9, step=0.2)
         d_inner = hidden_dims*4
-
         model = TransformerEncoder(in_channels=args['input_dims'], len_max_seq=len_max_seq,
             d_word_vec=hidden_dims, d_model=hidden_dims, d_inner=d_inner,
             n_layers=n_layers, n_head=n_heads, d_k=hidden_dims//n_heads, d_v=hidden_dims//n_heads,
