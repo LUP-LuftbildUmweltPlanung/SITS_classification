@@ -138,14 +138,14 @@ class Trainer():
 
         #wandb.finish() ##################################
         #print(stats)
-        # Add prune mechanism
-        if self.response=='classification':
-            self.trial.report(stats['accuracy'], self.epoch)
-        else:
-            self.trial.report(stats['rmse'], self.epoch)
+            # Add prune mechanism
+            if self.response=='classification':
+                self.trial.report(stats['accuracy'], self.epoch)
+            else:
+                self.trial.report(stats['rmse'], self.epoch)
 
-        if self.trial.should_prune():
-            raise optuna.exceptions.TrialPruned()
+            if self.trial.should_prune():
+                raise optuna.exceptions.TrialPruned()
 
         return self.logger
 
