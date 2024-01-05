@@ -1,23 +1,24 @@
-from train import train
+from train import train, prepare_dataset
 
 args = {
     'batchsize': 256,  # batch size
-    'epochs': 150,  # number of training epochs
+    'epochs': 5,  # number of training epochs
     'workers': 10,  # number of CPU workers to load the next batch
     'data_root': '/uge_mount/data_test/',
     'store': '/uge_mount/results/',  # store run logger results
     'valid_every_n_epochs': 1,  # skip some valid epochs for faster overall training
     'checkpoint_every_n_epochs': 2,  # save checkpoints during training
     'seed': 0,  # seed for batching and weight initialization
-    'valid_on': "valid",
-    'train_on': "train",
+    'partition': 25,  # partition of whole reference data
+    'ref_on': "reference", # folder name within 'data_root' for reference data
+    'ref_split': 0.8, # split ratio for training, other part is validation
     'model': "transformer",  # "tempcnn","rnn","msresnet","transformer"
     'response': "regression",  # "regression", "classification"
     'classes_lst': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22],
 }
 
 
-def old_hyperparameter_config(model):
+def hyperparameter_config(model):
     assert model in ["tempcnn", "transformer", "rnn", "msresnet"]
     if model == "tempcnn":
         return {
@@ -60,8 +61,11 @@ def old_hyperparameter_config(model):
         raise ValueError("Invalid model")
 
 
-new_args = old_hyperparameter_config(args['model'])
-args.update(new_args)
 
 if __name__ == '__main__':
-    train(args)
+    new_args = hyperparameter_config(args['model'])
+    args.update(new_args)
+
+    traindataloader, validdataloader = prepare_dataset(args)
+
+    train(args, traindataloader, validdataloader)
