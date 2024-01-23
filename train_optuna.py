@@ -23,49 +23,63 @@ import os
 
 
 
-
 def prepare_dataset(args):
 
+    assert args['response'] in ["regression", "classification"]
+    assert 0 <= args['partition'] <= 100, "Partition must be between 0 and 100"
 
+    if args['response'] == "regression":
+        args['classes_lst'] = [0]
     #ImbalancedDatasetSampler
-
-    valid_dataset_list = Dataset(root=args['data_root'], partition=args['valid_on'],
-                                                classes=args['classes_lst'], seed=args['seed'], response=args['response'])
-
-
-    train_dataset_list = Dataset(root=args['data_root'], partition=args['train_on'],
-                                                classes=args['classes_lst'], seed=args['seed'], response=args['response'])
-
 
     print("setting random seed to "+str(args['seed']))
     np.random.seed(args['seed'])
     if args['seed'] is not None:
         torch.random.manual_seed(args['seed'])
 
-    traindataloader = torch.utils.data.DataLoader(dataset=train_dataset_list, sampler=RandomSampler(train_dataset_list),
-                                                  batch_size=args['batchsize'], num_workers=args['workers'])
+    ref_dataset = Dataset(root=args['data_root'], partition=args['ref_on'],
+                          classes=args['classes_lst'], seed=args['seed'], response=args['response'])
 
-    validdataloader = torch.utils.data.DataLoader(dataset=valid_dataset_list, sampler=SequentialSampler(valid_dataset_list),
-                                                 batch_size=args['batchsize'], num_workers=args['workers'])
+    return ref_dataset
 
-    return traindataloader, validdataloader
 
 
 # OPTUNA: make this one into objective(trial)
 #def train(args):
-def train(trial,args):
+def train(trial,args,ref_dataset):
 
-    assert args['response'] in ["regression", "classification"]
-    if args['response'] == "regression":
-        args['classes_lst'] = [0]
+    # add the splitting part here
 
-    traindataloader, validdataloader = prepare_dataset(args)
+    #selected_size = int((args['partition'] / 100.0) * len(ref_dataset))
+    selected_size = trial.suggest_int("partition", 25, 50, 25)# (name, low, high, step)
+    selected_size = selected_size*len(ref_dataset)/100.0
 
-    args['nclasses'] = traindataloader.dataset.nclasses
-    args['seqlength'] = traindataloader.dataset.sequencelength
-    args['input_dims'] = traindataloader.dataset.ndims
+    remaining_size = len(ref_dataset) - selected_size
+    selected_dataset, _ = torch.utils.data.random_split(ref_dataset, [selected_size, remaining_size])
+    print(f"Selected {args['partition']}% of the dataset: {len(selected_dataset)} samples from a total of {len(ref_dataset)} samples.")
 
-    print(f"sequence_length is: {args['seqlength']}")
+    ref_split = trial.suggest_int("ref_split", 0.8, 0.9, 0.1)# (name, low, high, step)
+    #train_size = int(args['ref_split'] * len(selected_dataset))
+    train_size = int(ref_split * len(selected_dataset))
+    valid_size = len(selected_dataset) - train_size
+    train_dataset, valid_dataset = torch.utils.data.random_split(selected_dataset, [train_size, valid_size])
+
+    traindataloader = torch.utils.data.DataLoader(dataset=train_dataset, sampler=RandomSampler(train_dataset),
+                                                  batch_size=args['batchsize'], num_workers=args['workers'])
+
+    validdataloader = torch.utils.data.DataLoader(dataset=valid_dataset, sampler=SequentialSampler(valid_dataset),
+                                                 batch_size=args['batchsize'], num_workers=args['workers'])
+    print(f"Training Sample Size: {len(traindataloader.dataset)}")
+    print(f"Validation Sample Size: {len(validdataloader.dataset)}")
+
+    # continue with the original part of training
+
+    args['nclasses'] = traindataloader.dataset.dataset.dataset.nclasses
+    args['seqlength'] = traindataloader.dataset.dataset.dataset.sequencelength
+    args['input_dims'] = traindataloader.dataset.dataset.dataset.ndims
+    print(f"Sequence Length: {args['seqlength']}")
+    print(f"Input Dims: {args['input_dims']}")
+    print(f"Prediction Classes: {args['nclasses']}")
 
     # OPTUNA: this is the build_model_custom(trial)
     #model = getModel(args)
@@ -157,7 +171,7 @@ def getModel(trial,args):
     if mdl == "tempcnn":
         dropout=trial.suggest_float("dropout", 0, 0.9, step=0.2)
         model = TempCNN(input_dim=args['input_dims'], nclasses=args['nclasses'], sequence_length=args['seqlength'], hidden_dims=hidden_dims,
-						dropout=dropout, kernel_size=args['kernel_size'], response = args['response'])
+                        dropout=dropout, kernel_size=args['kernel_size'], response = args['response'])
 
     #elif args['model'] == "transformer":
     elif mdl == "transformer":
