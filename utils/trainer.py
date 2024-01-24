@@ -46,7 +46,7 @@ class Trainer():
         self.batch_size = validdataloader.batch_size
         self.traindataloader = traindataloader
         self.validdataloader = validdataloader
-        self.nclasses=traindataloader.dataset.nclasses
+        self.nclasses=traindataloader.dataset.dataset.dataset.nclasses
         self.store = store
         self.valid_every_n_epochs = valid_every_n_epochs
         self.logger = logger
@@ -69,7 +69,7 @@ class Trainer():
 
         #self.optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9)
 
-        self.classweights = torch.FloatTensor(traindataloader.dataset.classweights)
+        self.classweights = torch.FloatTensor(traindataloader.dataset.dataset.dataset.classweights)
 
         if torch.cuda.is_available():
             self.classweights = self.classweights.cuda()
@@ -107,7 +107,7 @@ class Trainer():
             stats = self.train_epoch(self.epoch)
             #print(stats)
             self.logger.log(stats, self.epoch)
-            printer.print(stats, self.epoch, prefix="\n"+self.traindataloader.dataset.partition+": ")
+            printer.print(stats, self.epoch, prefix="\n"+self.traindataloader.dataset.dataset.dataset.partition+": ")
             #wandb.log({"loss": stats['avg loss'],'epoch':self.epoch}) ##################################
 
             if self.epoch % self.valid_every_n_epochs == 0 or self.epoch==1:
@@ -115,7 +115,7 @@ class Trainer():
                 stats = self.valid_epoch(self.validdataloader)
                 #print(stats)
                 self.logger.log(stats, self.epoch)
-                printer.print(stats, self.epoch, prefix="\n"+self.validdataloader.dataset.partition+": ")
+                printer.print(stats, self.epoch, prefix="\n"+self.validdataloader.dataset.dataset.dataset.partition+": ")
                 #wandb.log({"val_loss": stats['avg loss'],'epoch':self.epoch}) ##################################
                 print("")
                 print("###"*10)
