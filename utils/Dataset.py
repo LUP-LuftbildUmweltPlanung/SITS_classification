@@ -14,7 +14,7 @@ PADDING_VALUE = -1
 class Dataset(torch.utils.data.Dataset):
 
     def __init__(self, root, partition, classes, cache=True, seed=0, response = None):
-        assert partition in ["test","train","valid"]
+        assert partition in ["test","train","valid","reference"]
 
         self.seed = seed
 

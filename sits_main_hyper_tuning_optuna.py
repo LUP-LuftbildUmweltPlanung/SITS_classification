@@ -1,6 +1,6 @@
 #import argparse
 
-from train_optuna import train
+from train_optuna import train, prepare_dataset
 import optuna
 
 
@@ -8,10 +8,10 @@ args = {
     'batchsize': 256,  # batch size
     'epochs': 5,#150,  # number of training epochs
     'workers': 10,  # number of CPU workers to load the next batch
-    #'data_root': '/uge_mount/data_test/',
-    'data_root': '../tmp_data/',
-    #'store': '/uge_mount/results/',  # store run logger results
-    'store': '../tmp_data/results/',  # store run logger results
+    'data_root': '/uge_mount/data_test/',
+    #'data_root': '../tmp_data/',
+    'store': '/uge_mount/results/',  # store run logger results
+    #'store': '../tmp_data/results/',  # store run logger results
     'valid_every_n_epochs': 1,  # skip some valid epochs for faster overall training
     'checkpoint_every_n_epochs': 2,  # save checkpoints during training
     'seed': 0,  # seed for batching and weight initialization
@@ -80,7 +80,7 @@ if __name__ == '__main__':
 
     ref_dataset = prepare_dataset(args)
 
-	storage_path = args['data_root']+'optuna/storage'
+    storage_path = args['data_root']+'optuna/storage'
     print(storage_path)
     storage = optuna.storages.JournalStorage(optuna.storages.JournalFileStorage(storage_path))
     study = optuna.create_study(direction="minimize", sampler=optuna.samplers.TPESampler(), pruner=optuna.pruners.MedianPruner(),storage=storage)

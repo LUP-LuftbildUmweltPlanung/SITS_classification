@@ -52,13 +52,14 @@ def train(trial,args,ref_dataset):
 
     #selected_size = int((args['partition'] / 100.0) * len(ref_dataset))
     selected_size = trial.suggest_int("partition", 25, 50, 25)# (name, low, high, step)
-    selected_size = selected_size*len(ref_dataset)/100.0
+    selected_size = int(selected_size*len(ref_dataset)/100.0)
+    print("selected_size="+str(selected_size))
 
     remaining_size = len(ref_dataset) - selected_size
     selected_dataset, _ = torch.utils.data.random_split(ref_dataset, [selected_size, remaining_size])
     print(f"Selected {args['partition']}% of the dataset: {len(selected_dataset)} samples from a total of {len(ref_dataset)} samples.")
 
-    ref_split = trial.suggest_int("ref_split", 0.8, 0.9, 0.1)# (name, low, high, step)
+    ref_split = trial.suggest_float("ref_split", 0.8, 0.9,step=0.1)# (name, low, high, step)
     #train_size = int(args['ref_split'] * len(selected_dataset))
     train_size = int(ref_split * len(selected_dataset))
     valid_size = len(selected_dataset) - train_size
