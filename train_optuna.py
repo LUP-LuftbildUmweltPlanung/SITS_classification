@@ -49,9 +49,11 @@ def prepare_dataset(args):
 def train(trial,args,ref_dataset):
 
     # add the splitting part here
-
     #selected_size = int((args['partition'] / 100.0) * len(ref_dataset))
-    selected_size = trial.suggest_int("partition", 25, 50, 25)# (name, low, high, step)
+    if trial:
+        selected_size = trial.suggest_int("partition", 45, 70, 25)# (name, low, high, step)
+    else:
+        selected_size = args['partition']
     selected_size = int(selected_size*len(ref_dataset)/100.0)
     print("selected_size="+str(selected_size))
 
@@ -59,7 +61,10 @@ def train(trial,args,ref_dataset):
     selected_dataset, _ = torch.utils.data.random_split(ref_dataset, [selected_size, remaining_size])
     print(f"Selected {args['partition']}% of the dataset: {len(selected_dataset)} samples from a total of {len(ref_dataset)} samples.")
 
-    ref_split = trial.suggest_float("ref_split", 0.8, 0.9,step=0.1)# (name, low, high, step)
+    if trial:
+        ref_split = trial.suggest_float("ref_split", 0.8, 0.9,step=0.1)# (name, low, high, step)
+    else:
+        ref_split = args['ref_split']
     #train_size = int(args['ref_split'] * len(selected_dataset))
     train_size = int(ref_split * len(selected_dataset))
     valid_size = len(selected_dataset) - train_size
@@ -84,23 +89,28 @@ def train(trial,args,ref_dataset):
 
     # OPTUNA: this is the build_model_custom(trial)
     #model = getModel(args)
-    model = getModel(trial,args)
+    model,mdl = getModel(trial,args)
 
     store = os.path.join(args['store'],args['model'])
 
     logger = Logger(columns=["accuracy"], modes=["train", "valid"], rootpath=store)
 
-    learning_rate=trial.suggest_loguniform('learning_rate', 1e-5, 1e-2)
-    weight_decay=trial.suggest_loguniform('weight_decay', 1e-6, 1e-3)
+    if trial:
+        learning_rate=trial.suggest_loguniform('learning_rate', 1e-5, 1e-2)
+        weight_decay=trial.suggest_loguniform('weight_decay', 1e-6, 1e-3)
+    else:
+        learning_rate=args['learning_rate']
+        weight_decay=args['weight_decay']
 
-
-    if args['model'] in ["transformer"]:
+    #if args['model'] in ["transformer"]:
+    if mdl in ["transformer"]:
         optimizer = ScheduledOptim(
             optim.Adam(
                 filter(lambda x: x.requires_grad, model.parameters()),
                 betas=(0.9, 0.98), eps=1e-09, weight_decay=args['weight_decay']),
             model.d_model, args['warmup'])
-    elif args['model'] in ["rnn", "msresnet","tempcnn"]:
+    #elif args['model'] in ["rnn", "msresnet","tempcnn"]:
+    elif mdl in ["rnn", "msresnet","tempcnn"]:
         optimizer = optim.Adam(
             filter(lambda x: x.requires_grad, model.parameters()),
             #betas=(0.9, 0.999), eps=1e-08, weight_decay=args['weight_decay'], lr=args['learning_rate'])
@@ -151,14 +161,24 @@ def train(trial,args,ref_dataset):
 #def getModel(args):
 def getModel(trial,args):
 
-    hidden_dims = trial.suggest_int("hidden_dims", 128, 512, 128)# (name, low, high, step)
+    if trial:
+        hidden_dims = trial.suggest_int("hidden_dims", 128, 512, 128)# (name, low, high, step)
+    else:
+        hidden_dims = args["hidden_dims"]
 
-    mdl = trial.suggest_categorical("model", ["transformer", "rnn", "msresnet"])
+    if trial:
+        mdl = trial.suggest_categorical("model", ["transformer", "rnn", "msresnet"])
+    else:
+        mdl = args['model']
 
     #if args['model'] == "rnn":
     if mdl == "rnn":
-        dropout=trial.suggest_float("dropout", 0, 0.9, step=0.2)
-        n_layers = trial.suggest_int("n_layers", 3, 6)
+        if trial:
+            dropout=trial.suggest_float("dropout", 0, 0.9, step=0.2)
+            n_layers = trial.suggest_int("n_layers", 3, 6)
+        else:
+            dropout=args["dropout"]
+            n_layers = args["n_layers"]
         model = RNN(input_dim=args['input_dims'], nclasses=args['nclasses'], hidden_dims=hidden_dims,
                               #num_rnn_layers=args['num_layers'],
                               num_rnn_layers=n_layers,
@@ -170,9 +190,11 @@ def getModel(trial,args):
 
     #if args['model'] == "tempcnn":
     if mdl == "tempcnn":
-        dropout=trial.suggest_float("dropout", 0, 0.9, step=0.2)
-        model = TempCNN(input_dim=args['input_dims'], nclasses=args['nclasses'], sequence_length=args['seqlength'], hidden_dims=hidden_dims,
-                        dropout=dropout, kernel_size=args['kernel_size'], response = args['response'])
+        if trial:
+            dropout=trial.suggest_float("dropout", 0, 0.9, step=0.2)
+        else:
+            dropout=args["dropout"]
+        model = TempCNN(input_dim=args['input_dims'], nclasses=args['nclasses'], sequence_length=args['seqlength'], hidden_dims=                hidden_dims, dropout=dropout, kernel_size=args['kernel_size'], response = args['response'])
 
     #elif args['model'] == "transformer":
     elif mdl == "transformer":
@@ -180,9 +202,13 @@ def getModel(trial,args):
         #hidden_dims = args['hidden_dims'] # 256
         n_heads = args['n_heads'] # 8
         #n_layers = args['n_layers'] # 6
-        n_layers = trial.suggest_int("n_layers", 3, 6)
+        if trial:
+            n_layers = trial.suggest_int("n_layers", 3, 6)
+            dropout=trial.suggest_float("dropout", 0, 0.9, step=0.2)
+        else:
+            n_layers = args["n_layers"]
+            dropout=args["dropout"]
         len_max_seq = args['seqlength']
-        dropout=trial.suggest_float("dropout", 0, 0.9, step=0.2)
         d_inner = hidden_dims*4
         model = TransformerEncoder(in_channels=args['input_dims'], len_max_seq=len_max_seq,
             d_word_vec=hidden_dims, d_model=hidden_dims, d_inner=d_inner,
@@ -195,4 +221,4 @@ def getModel(trial,args):
     pytorch_total_params = sum(p.numel() for p in model.parameters())
     print("initialized {} model ({} parameters)".format(args['model'], pytorch_total_params))
 
-    return model
+    return model, mdl

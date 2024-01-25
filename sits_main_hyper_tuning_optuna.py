@@ -1,4 +1,6 @@
-#import argparse
+import argparse
+
+import sys
 
 from train_optuna import train, prepare_dataset
 import optuna
@@ -8,10 +10,10 @@ args = {
     'batchsize': 256,  # batch size
     'epochs': 5,#150,  # number of training epochs
     'workers': 10,  # number of CPU workers to load the next batch
-    'data_root': '/uge_mount/data_test/',
-    #'data_root': '../tmp_data/',
-    'store': '/uge_mount/results/',  # store run logger results
-    #'store': '../tmp_data/results/',  # store run logger results
+    #'data_root': '/uge_mount/data_test/',
+    'data_root': '../tmp_data/',
+    #'store': '/uge_mount/results/',  # store run logger results
+    'store': '../tmp_data/results/',  # store run logger results
     'valid_every_n_epochs': 1,  # skip some valid epochs for faster overall training
     'checkpoint_every_n_epochs': 2,  # save checkpoints during training
     'seed': 0,  # seed for batching and weight initialization
@@ -71,19 +73,32 @@ def hyperparameter_config(model):
 
 if __name__ == '__main__':
 
+    parser = argparse.ArgumentParser(
+        description="Run the training or hyperparameter tuning.")
+
+    parser.add_argument("--tune", action=argparse.BooleanOptionalAction, default=False,
+                        help="To tune hyperparameters.")
+
+    p_args = parser.parse_args()
+    tune = p_args.tune
+
+    #print(tune)
 
     new_args = hyperparameter_config(args['model'])
     args.update(new_args)
-    #args['batchsize'] = comm_args.batchsize
-    print("args:")
-    print(args)
+    #print("args:")
+    #print(args)
 
     ref_dataset = prepare_dataset(args)
 
-    storage_path = args['data_root']+'optuna/storage'
-    print(storage_path)
-    storage = optuna.storages.JournalStorage(optuna.storages.JournalFileStorage(storage_path))
-    study = optuna.create_study(direction="minimize", sampler=optuna.samplers.TPESampler(), pruner=optuna.pruners.MedianPruner(),storage=storage)
-    study.optimize(lambda trial: train(trial, args, ref_dataset), n_trials=100)
-
-    print(f"Best value: {study.best_value} (params: {study.best_params})")
+    if tune:
+        print("tuning")
+        storage_path = args['data_root']+'optuna/storage'
+        print(storage_path)
+        storage = optuna.storages.JournalStorage(optuna.storages.JournalFileStorage(storage_path))
+        study = optuna.create_study(direction="minimize", sampler=optuna.samplers.TPESampler(), pruner=optuna.pruners.MedianPruner(),storage=storage)
+        study.optimize(lambda trial: train(trial, args, ref_dataset), n_trials=100)
+        print(f"Best value: {study.best_value} (params: {study.best_params})")
+    else:
+        print('training')
+        train(None,args,ref_dataset)
