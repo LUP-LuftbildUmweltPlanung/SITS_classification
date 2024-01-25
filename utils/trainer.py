@@ -19,9 +19,15 @@ import copy
 from tqdm import tqdm
 
 
+#import wandb
+import optuna
+
+
+
 class Trainer():
 
     def __init__(self,
+                 trial,
                  model,
                  traindataloader,
                  validdataloader,
@@ -49,7 +55,12 @@ class Trainer():
         self.early_stopping_smooth_period = 5
         self.early_stopping_patience = 5
         self.not_improved_epochs=0
+        self.trial = trial
         #self.early_stopping_metric="kappa"
+        ####self.test_file = 'test.txt' # REMOVE!
+
+        #wandb.init(project="test_sits_main",config=kwargs) ##############################
+        #wandb.watch(model, log_freq=100) ##################################
 
         if optimizer is None:
             self.optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
@@ -97,6 +108,7 @@ class Trainer():
             #print(stats)
             self.logger.log(stats, self.epoch)
             printer.print(stats, self.epoch, prefix="\n"+self.traindataloader.dataset.dataset.dataset.partition+": ")
+            #wandb.log({"loss": stats['avg loss'],'epoch':self.epoch}) ##################################
 
             if self.epoch % self.valid_every_n_epochs == 0 or self.epoch==1:
                 self.logger.set_mode("valid")
@@ -104,6 +116,7 @@ class Trainer():
                 #print(stats)
                 self.logger.log(stats, self.epoch)
                 printer.print(stats, self.epoch, prefix="\n"+self.validdataloader.dataset.dataset.dataset.partition+": ")
+                #wandb.log({"val_loss": stats['avg loss'],'epoch':self.epoch}) ##################################
                 print("")
                 print("###"*10)
 
@@ -120,7 +133,20 @@ class Trainer():
                 self.snapshot(self.get_model_name())
                 print("Saving log to {}".format(self.get_log_name()))
                 self.logger.get_data().to_csv(self.get_log_name())
+                #wandb.finish() ##################################
                 return self.logger
+
+        #wandb.finish() ##################################
+        #print(stats)
+            # Add prune mechanism
+            if self.trial:
+                if self.response=='classification':
+                    self.trial.report(stats['accuracy'], self.epoch)
+                else:
+                    self.trial.report(stats['rmse'], self.epoch)
+
+                if self.trial.should_prune():
+                    raise optuna.exceptions.TrialPruned()
 
         return self.logger
 
@@ -168,6 +194,8 @@ class Trainer():
                             desc=f"Epoch {epoch}",
                             leave=True)
 
+        cumu_loss = 0 ##################################
+
         for iteration, data in progress_bar:
 
             self.optimizer.zero_grad()
@@ -181,6 +209,9 @@ class Trainer():
                 loss = F.nll_loss(logprobabilities, targets[:, 0])
             else:
                 loss = F.mse_loss(logprobabilities.squeeze(1),targets[:, 0])
+
+            cumu_loss += loss.item() ##################################
+            #print("loss="+str(loss.item())+', cumu_loss='+str(cumu_loss))
 
             loss.backward()
 
@@ -221,6 +252,10 @@ class Trainer():
             else:
                 progress_bar.set_postfix(loss=stats["loss"].item(), acc=stats["rmse"], refresh=True)
 
+            #wandb.log({"batch loss": loss}) ##################################
+
+        stats['avg loss'] = cumu_loss/len(self.traindataloader) ##################################
+
         return stats
 
     def valid_epoch(self, dataloader, epoch=None):
@@ -234,6 +269,9 @@ class Trainer():
 
 
         with torch.no_grad():
+
+            cumu_loss = 0 ##################################
+
             for iteration, data in enumerate(dataloader):
 
                 inputs, targets, _ = data
@@ -248,6 +286,9 @@ class Trainer():
                     loss = F.nll_loss(logprobabilities, targets[:, 0])
                 else:
                     loss = F.mse_loss(logprobabilities.squeeze(1), targets[:, 0])
+
+                cumu_loss += loss.item() ##################################
+                #print("loss="+str(loss.item())+', cumu_loss='+str(cumu_loss))
 
                 stats = dict(
                     loss=loss,
@@ -275,9 +316,12 @@ class Trainer():
                     stats["r2"] = rmse_r2_stats["r2"]
                     stats["rmse"] = rmse_r2_stats["rmse"]
 
+                #wandb.log({"batch val_loss": loss}) ##################################
 
             stats["targets"] = targets.cpu().numpy()
             stats["inputs"] = inputs.cpu().numpy()
+
+            stats['avg loss'] = cumu_loss/len(dataloader) ##################################
 
         return stats
 

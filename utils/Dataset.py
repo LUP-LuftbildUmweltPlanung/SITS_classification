@@ -14,6 +14,7 @@ PADDING_VALUE = -1
 class Dataset(torch.utils.data.Dataset):
 
     def __init__(self, root, partition, classes, cache=True, seed=0, response = None):
+        assert partition in ["test","train","valid","reference"]
 
         self.seed = seed
 
@@ -33,9 +34,13 @@ class Dataset(torch.utils.data.Dataset):
         self.nclasses = len(self.classes)
 
         self.data_folder = "{root}/csv".format(root=self.root)
+        #all_csv_files
+        #self.csvfiles = [ for f in os.listdir(root)]
+        print("Initializing BavarianCropsDataset {} partition".format(self.partition))
 
         self.cache = os.path.join(self.root,"npy", partition)
         self.cache = self.cache.replace("\\", "/")
+        print("read {} classes".format(self.nclasses))
 
         if cache and self.cache_exists() and not self.mapping_consistent_with_cache():
             self.clean_cache()
@@ -49,10 +54,10 @@ class Dataset(torch.utils.data.Dataset):
 
         self.hist, _ = np.histogram(self.y, bins=self.nclasses)
 
-        print("Loaded {} Reference Samples".format(len(self.ids)))
+        print("loaded {} samples".format(len(self.ids)))
         #print("class frequencies " + ", ".join(["{c}:{h}".format(h=h, c=c) for h, c in zip(self.hist, self.classes)]))
 
-        #print(self)
+        print(self)
 
     def __str__(self):
         return "Dataset {}. partition {}. X:{}, y:{} with {} classes".format(self.root, self.partition,str(len(self.X)) +"x"+ str(self.X[0].shape), self.y.shape, self.nclasses)
