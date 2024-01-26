@@ -107,7 +107,7 @@ def train(trial,args,ref_dataset):
         optimizer = ScheduledOptim(
             optim.Adam(
                 filter(lambda x: x.requires_grad, model.parameters()),
-                betas=(0.9, 0.98), eps=1e-09, weight_decay=args['weight_decay']),
+                betas=(0.9, 0.98), eps=1e-09, weight_decay=weight_decay),
             model.d_model, args['warmup'])
     #elif args['model'] in ["rnn", "msresnet","tempcnn"]:
     elif mdl in ["rnn", "msresnet","tempcnn"]:
@@ -219,6 +219,6 @@ def getModel(trial,args):
         model = model.cuda()
 
     pytorch_total_params = sum(p.numel() for p in model.parameters())
-    print("initialized {} model ({} parameters)".format(args['model'], pytorch_total_params))
+    print("initialized {} model ({} parameters)".format(mdl, pytorch_total_params))
 
     return model, mdl
