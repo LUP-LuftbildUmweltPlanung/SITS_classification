@@ -6,6 +6,8 @@ from train_optuna import train, prepare_dataset
 import optuna
 
 
+
+
 args = {
     'batchsize': 256,  # batch size
     'epochs': 5,#150,  # number of training epochs
@@ -97,8 +99,10 @@ if __name__ == '__main__':
         print(storage_path)
         storage = optuna.storages.JournalStorage(optuna.storages.JournalFileStorage(storage_path))
         study = optuna.create_study(direction="minimize", sampler=optuna.samplers.TPESampler(), pruner=optuna.pruners.MedianPruner(),storage=storage)
+
         study.optimize(lambda trial: train(trial, args, ref_dataset), n_trials=100)
         print(f"Best value: {study.best_value} (params: {study.best_params})")
+
     else:
         print('training')
         train(None,args,ref_dataset)

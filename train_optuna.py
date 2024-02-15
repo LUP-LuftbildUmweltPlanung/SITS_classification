@@ -21,6 +21,8 @@ import os
 #from torchtnt.framework.callbacks import SystemResourcesMonitor
 #from torchtnt.utils.loggers.logger import MetricLogger
 
+from hw_monitor import HWMonitor
+
 
 
 def prepare_dataset(args):
@@ -51,6 +53,10 @@ def train(trial,args,ref_dataset):
     # add the splitting part here
     #selected_size = int((args['partition'] / 100.0) * len(ref_dataset))
     if trial:
+        # Instantiate monitor with a 1-second delay between updates
+        hwmon = HWMonitor(2,trial)
+        # start monitoring
+        hwmon.start()
         selected_size = trial.suggest_int("partition", 45, 70, 25)# (name, low, high, step)
     else:
         selected_size = args['partition']
@@ -156,6 +162,10 @@ def train(trial,args,ref_dataset):
         return logger.get_data().iloc[-1]['accuracy']
     else:
         return logger.get_data().iloc[-1]['rmse']
+
+
+    if trial:
+        hwmon.stop()
 
 # OPTUNA: this should be build_model_custom
 #def getModel(args):
