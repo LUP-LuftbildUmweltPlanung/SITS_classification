@@ -5,7 +5,7 @@ import sys
 from train_optuna import train, prepare_dataset
 import optuna
 
-
+from hw_monitor import HWMonitor
 
 
 args = {
@@ -94,14 +94,23 @@ if __name__ == '__main__':
     ref_dataset = prepare_dataset(args)
 
     if tune:
+
         print("tuning")
         storage_path = args['data_root']+'optuna/storage'
         print(storage_path)
         storage = optuna.storages.JournalStorage(optuna.storages.JournalFileStorage(storage_path))
         study = optuna.create_study(direction="minimize", sampler=optuna.samplers.TPESampler(), pruner=optuna.pruners.MedianPruner(),storage=storage)
 
+        # Instantiate monitor with a 1-second delay between updates
+        hw_logs_path = args['store']+study.study_name+'.csv'
+        hwmon = HWMonitor(2,hw_logs_path)
+        # start monitoring
+        hwmon.start()
+
         study.optimize(lambda trial: train(trial, args, ref_dataset), n_trials=100)
         print(f"Best value: {study.best_value} (params: {study.best_params})")
+
+        hwmon.stop()
 
     else:
         print('training')
