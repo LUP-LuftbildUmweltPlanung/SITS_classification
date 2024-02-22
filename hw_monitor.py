@@ -15,7 +15,6 @@ class HWMonitor(Thread):
         Thread.__init__(self)
         self.running = True
         self.delay = delay
-        #self.optuna_trial = optuna_trial
         self.out_file_name = out_file_name
         self.outf = open(out_file_name,'w')
         self.writer = csv.writer(self.outf)
@@ -29,13 +28,11 @@ class HWMonitor(Thread):
     def run(self):
         while self.running:
             #GPUtil.showUtilization()
-            #self.optuna_trial.set_user_attr("test_gpu", -99.99)
             cpu = psutil.cpu_percent(interval=None, percpu=True)
             mem = psutil.virtual_memory()
             swap = psutil.swap_memory()
             diff_disk_usage = self.get_diff_disk_usage(self.get_disk_usage())
             diff_net_usage = self.get_diff_net_usage(self.get_net_usage())
-            #net = psutil.net_io_counters()
             #sensors = psutil.sensors_temperatures()
             fans = psutil.sensors_fans()
             GPUs = GPUtil.getGPUs()
@@ -98,7 +95,6 @@ class HWMonitor(Thread):
 
     def stop(self):
         self.running = False
-        #time.sleep(self.delay)
         time.sleep(2)
         self.outf.close()
 
