@@ -1,11 +1,12 @@
 import argparse
 
 import sys
+#import time
 
 from train_optuna import train, prepare_dataset
 import optuna
 
-from hw_monitor import HWMonitor
+from hw_monitor import HWMonitor, disk_info
 
 
 args = {
@@ -86,32 +87,48 @@ if __name__ == '__main__':
 
     #print(tune)
 
+    disk_info()
+
     new_args = hyperparameter_config(args['model'])
     args.update(new_args)
     #print("args:")
     #print(args)
 
+    # Instantiate monitor with a 1-second delay between updates
+    #hw_logs_path = args['store']+study.study_name+'.csv'
+    hw_logs_path = 'hw_init.csv'
+    hwmon_i = HWMonitor(0.1,hw_logs_path,['nvme0n1p2','nvme0n1p4','nvme0n1p5'])
+    # start monitoring
+    hwmon_i.start()
     ref_dataset = prepare_dataset(args)
+    hwmon_i.stop()
+
+
+    #sys.exit()
+
+    # Instantiate monitor with a 1-second delay between updates
+    #hw_logs_path = args['store']+study.study_name+'.csv'
+    hw_logs_path = 'hw.csv'
+    hwmon = HWMonitor(1,hw_logs_path,['nvme0n1p2','nvme0n1p4','nvme0n1p5'])
+    # start monitoring
+    hwmon.start()
+
 
     if tune:
 
         print("tuning")
         storage_path = args['data_root']+'optuna/storage'
         print(storage_path)
+
         storage = optuna.storages.JournalStorage(optuna.storages.JournalFileStorage(storage_path))
         study = optuna.create_study(direction="minimize", sampler=optuna.samplers.TPESampler(), pruner=optuna.pruners.MedianPruner(),storage=storage)
 
-        # Instantiate monitor with a 1-second delay between updates
-        hw_logs_path = args['store']+study.study_name+'.csv'
-        hwmon = HWMonitor(2,hw_logs_path)
-        # start monitoring
-        hwmon.start()
-
         study.optimize(lambda trial: train(trial, args, ref_dataset), n_trials=100)
-        print(f"Best value: {study.best_value} (params: {study.best_params})")
 
-        hwmon.stop()
+        print(f"Best value: {study.best_value} (params: {study.best_params})")
 
     else:
         print('training')
         train(None,args,ref_dataset)
+
+    hwmon.stop()
