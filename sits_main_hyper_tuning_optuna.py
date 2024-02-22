@@ -1,6 +1,7 @@
 import argparse
 
 import sys
+from pathlib import Path
 #import time
 
 from train_optuna import train, prepare_dataset
@@ -26,6 +27,16 @@ args = {
     'model': "transformer",  # "tempcnn","rnn","msresnet","transformer"
     'response': "regression",  # "regression", "classification"
     'classes_lst': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22],
+}
+
+
+hw_args = {
+    'disks_to_monitor': ['nvme0n1p2','nvme0n1p4','nvme0n1p5'],
+    'hw_logs_dir': args['store'] + '/hw_monitor',
+    # The following are used in case of train and predict, but not for tune! For tuning, the name is generated from the study name.
+    'hw_init_logs_file_name': 'hw_monitor_init.csv',
+    'hw_train_logs_file_name': 'hw_monitor_train.csv',
+    'hw_predict_logs_file': 'hw_monitor_predict.csv',
 }
 
 
@@ -87,41 +98,57 @@ if __name__ == '__main__':
 
     #print(tune)
 
+    # get disk info
     disk_info()
 
-    new_args = hyperparameter_config(args['model'])
-    args.update(new_args)
-    #print("args:")
-    #print(args)
+    # create hw_monitor output dir if it doesn't exist
+    Path(hw_args['hw_logs_dir']).mkdir(parents=True, exist_ok=True)
 
-    # Instantiate monitor with a 1-second delay between updates
-    #hw_logs_path = args['store']+study.study_name+'.csv'
-    hw_logs_path = 'hw_init.csv'
-    hwmon_i = HWMonitor(0.1,hw_logs_path,['nvme0n1p2','nvme0n1p4','nvme0n1p5'])
-    # start monitoring
-    hwmon_i.start()
-    ref_dataset = prepare_dataset(args)
-    hwmon_i.stop()
-
-
-    #sys.exit()
-
-    # Instantiate monitor with a 1-second delay between updates
-    #hw_logs_path = args['store']+study.study_name+'.csv'
-    hw_logs_path = 'hw.csv'
-    hwmon = HWMonitor(1,hw_logs_path,['nvme0n1p2','nvme0n1p4','nvme0n1p5'])
-    # start monitoring
-    hwmon.start()
-
-
+    # create hw log file name for initial reading from the disk
     if tune:
-
-        print("tuning")
+        #print("tuning")
         storage_path = args['data_root']+'optuna/storage'
         print(storage_path)
 
         storage = optuna.storages.JournalStorage(optuna.storages.JournalFileStorage(storage_path))
         study = optuna.create_study(direction="minimize", sampler=optuna.samplers.TPESampler(), pruner=optuna.pruners.MedianPruner(),storage=storage)
+
+        hw_init_logs_file = hw_args['hw_logs_dir'] + '/hw_monitor_init_' +study.study_name+'.csv'
+        hw_tune_logs_file = hw_args['hw_logs_dir'] + '/hw_monitor_tune_' +study.study_name+'.csv'
+
+    else:
+        hw_init_logs_file = hw_args['hw_logs_dir'] + '/' + hw_args['hw_init_logs_file_name']
+        hw_train_logs_file = hw_args['hw_logs_dir'] + '/' + hw_args['hw_train_logs_file_name']
+        hw_predict_logs_file = hw_args['hw_logs_dir'] + '/' + hw_args['hw_predict_logs_file']
+
+    new_args = hyperparameter_config(args['model'])
+    args.update(new_args)
+
+    # Instantiate monitor with a 0.1-second delay between updates
+    hwmon_i = HWMonitor(0.1,hw_init_logs_file,hw_args['disks_to_monitor'])
+    # start monitoring
+    hwmon_i.start()
+    ref_dataset = prepare_dataset(args)
+    # stop monitoring
+    hwmon_i.stop()
+
+
+    #sys.exit()
+
+
+    if tune:
+
+        print("tuning")
+        #storage_path = args['data_root']+'optuna/storage'
+        #print(storage_path)
+
+        #storage = optuna.storages.JournalStorage(optuna.storages.JournalFileStorage(storage_path))
+        #study = optuna.create_study(direction="minimize", sampler=optuna.samplers.TPESampler(), pruner=optuna.pruners.MedianPruner(),storage=storage)
+
+        # Instantiate monitor with a 1-second delay between updates
+        hwmon = HWMonitor(1,hw_tune_logs_file,hw_args['disks_to_monitor'])
+        # start monitoring
+        hwmon.start()
 
         study.optimize(lambda trial: train(trial, args, ref_dataset), n_trials=100)
 
@@ -129,6 +156,13 @@ if __name__ == '__main__':
 
     else:
         print('training')
+
+        # Instantiate monitor with a 1-second delay between updates
+        hwmon = HWMonitor(1,hw_train_logs_file,hw_args['disks_to_monitor'])
+        # start monitoring
+        hwmon.start()
+
         train(None,args,ref_dataset)
 
+    # stop monitoring
     hwmon.stop()
