@@ -1,6 +1,8 @@
 import sys
 sys.path.append("./models")
 
+from pathlib import Path
+
 import numpy as np
 import torch
 
@@ -12,6 +14,7 @@ from pytorch.utils.Dataset import Dataset
 from pytorch.utils.trainer import Trainer
 from torch.utils.data.sampler import RandomSampler, SequentialSampler
 from pytorch.utils.logger import Logger
+from pytorch.utils.hw_monitor import HWMonitor, disk_info
 from pytorch.utils.scheduled_optimizer import ScheduledOptim
 import torch.optim as optim
 import os, json
@@ -157,9 +160,24 @@ def getModel(args):
 
 def train_init(args_train):
 
+    hw_args = args_train['hw_monitor']
+
+    # create hw_monitor output dir if it doesn't exist
+    Path(hw_args['hw_logs_dir']).mkdir(parents=True, exist_ok=True)
+
     if args_train['tune'] == True:
         print("tuning")
+
+        hw_init_logs_file = hw_args['hw_logs_dir'] + '/hw_monitor_init_' +args_train['study_name']+'.csv'
+        hw_tune_logs_file = hw_args['hw_logs_dir'] + '/hw_monitor_tune_' +args_train['study_name']+'.csv'
+
+        # Instantiate monitor with a 0.1-second delay between updates
+        hwmon_i = HWMonitor(0.1,hw_init_logs_file,hw_args['disks_to_monitor'])
+        # start monitoring
+        hwmon_i.start()
         ref_dataset = prepare_dataset(args_train)
+        # stop monitoring
+        hwmon_i.stop()
 
         os.makedirs(args_train['data_root'] + 'optuna', exist_ok=True)
         storage_path = args_train['data_root'] + 'optuna/storage'
@@ -167,10 +185,34 @@ def train_init(args_train):
         storage = optuna.storages.JournalStorage(optuna.storages.JournalFileStorage(storage_path))
         study = optuna.create_study(direction="minimize", sampler=optuna.samplers.CmaEsSampler(),
                                     pruner=optuna.pruners.MedianPruner(), storage=storage, study_name=args_train['study_name'])
+
+        # Instantiate monitor with a 1-second delay between updates
+        hwmon = HWMonitor(1,hw_tune_logs_file,hw_args['disks_to_monitor'])
+        # start monitoring
+        hwmon.start()
         study.optimize(lambda trial: train(trial, args_train, ref_dataset), n_trials=100)
+        # stop monitoring
+        hwmon.stop()
         print(f"Best value: {study.best_value} (params: {study.best_params})")
 
     else:
         print("training")
+
+        hw_init_logs_file = hw_args['hw_logs_dir'] + '/' + hw_args['hw_init_logs_file_name']
+        hw_train_logs_file = hw_args['hw_logs_dir'] + '/' + hw_args['hw_train_logs_file_name']
+
+        # Instantiate monitor with a 0.1-second delay between updates
+        hwmon_i = HWMonitor(0.1,hw_init_logs_file,hw_args['disks_to_monitor'])
+        # start monitoring
+        hwmon_i.start()
         ref_dataset = prepare_dataset(args_train)
+        # stop monitoring
+        hwmon_i.stop()
+
+        # Instantiate monitor with a 1-second delay between updates
+        hwmon = HWMonitor(1,hw_train_logs_file,hw_args['disks_to_monitor'])
+        # start monitoring
+        hwmon.start()
         train(None, args_train, ref_dataset)
+        # stop monitoring
+        hwmon.stop()

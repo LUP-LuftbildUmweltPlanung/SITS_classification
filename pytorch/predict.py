@@ -1,13 +1,16 @@
 import os
+from pathlib import Path
 import torch
 import rasterio
 import sys
 import numpy as np
 
 from pytorch.train import getModel
+from pytorch.utils.hw_monitor import HWMonitor, disk_info
 from tqdm import tqdm
 import glob
 import json
+
 def load_model(model_path,args):
 
     # Load a PyTorch model from the given path
@@ -123,6 +126,7 @@ def reshape_and_save(predictions, tiles, args_predict):
     with rasterio.open(output_path, 'w', **metadata) as dst:
         dst.write(reshaped_predictions, 1)
 
+
 def load_hyperparametersplus(model_name):
     """
     Load the hyperparameters from a JSON file.
@@ -140,7 +144,21 @@ def load_hyperparametersplus(model_name):
 
     return hyperparameters
 
+
 def predict_init(args_predict):
+
+    hw_args = args_predict['hw_monitor']
+
+    # create hw_monitor output dir if it doesn't exist
+    Path(hw_args['hw_logs_dir']).mkdir(parents=True, exist_ok=True)
+
+    hw_predict_logs_file = hw_args['hw_logs_dir'] + '/' + hw_args['hw_predict_logs_file_name']
+
+    # Instantiate monitor with a 1-second delay between updates
+    hwmon_p = HWMonitor(1,hw_predict_logs_file,hw_args['disks_to_monitor'])
+    # start monitoring
+    hwmon_p.start()
+
     hyp = load_hyperparametersplus(os.path.dirname(args_predict["model_path"]))
     args_predict.update(hyp)
 
@@ -156,3 +174,6 @@ def predict_init(args_predict):
         print(f"Started Prediction for Tile {os.path.basename(tile)}")
         prediction = predict(model,tile,args_predict)
         reshape_and_save(prediction,tile,args_predict)
+
+    # stop monitoring
+    hwmon_p.stop()
