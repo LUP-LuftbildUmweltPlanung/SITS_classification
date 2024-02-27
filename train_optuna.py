@@ -48,7 +48,7 @@ def prepare_dataset(args):
 
 # OPTUNA: make this one into objective(trial)
 #def train(args):
-def train(trial,args,ref_dataset):
+def train(trial,args,ref_dataset,hwm):
 
     # add the splitting part here
     #selected_size = int((args['partition'] / 100.0) * len(ref_dataset))
@@ -142,7 +142,11 @@ def train(trial,args,ref_dataset):
     # OPTUNA: here we need train_and_evaluate(params, model, trial)
     #trainer = Trainer(model,traindataloader,validdataloader,**config)
     trainer = Trainer(trial,model,traindataloader,validdataloader,**config)
+    hwm.start_averaging()
     logger = trainer.fit()
+    hwm.stop_averaging()
+    avgs = hwm.get_averages()
+    print(avgs)
     #logger = trainer.fit(callbacks=[sysresmonitor_callback])
 
     # stores all stored values in the rootpath of the logger

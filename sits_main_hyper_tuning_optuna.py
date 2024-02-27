@@ -12,7 +12,7 @@ from hw_monitor import HWMonitor, disk_info
 
 args = {
     'batchsize': 256,  # batch size
-    'epochs': 5,#150,  # number of training epochs
+    'epochs': 1,#150,  # number of training epochs
     'workers': 10,  # number of CPU workers to load the next batch
     #'data_root': '/uge_mount/data_test/',
     'data_root': '../tmp_data/',
@@ -150,7 +150,7 @@ if __name__ == '__main__':
         # start monitoring
         hwmon.start()
 
-        study.optimize(lambda trial: train(trial, args, ref_dataset), n_trials=100)
+        study.optimize(lambda trial: train(trial, args, ref_dataset, hwmon), n_trials=100)
 
         print(f"Best value: {study.best_value} (params: {study.best_params})")
 

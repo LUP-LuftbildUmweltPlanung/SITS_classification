@@ -2,6 +2,8 @@ from threading import Thread
 import time
 from datetime import datetime
 
+import pandas as pd
+
 import GPUtil
 import psutil
 from psutil._common import bytes2human
@@ -19,10 +21,14 @@ class HWMonitor(Thread):
         self.outf = open(out_file_name,'w')
         self.writer = csv.writer(self.outf)
         self.write_header = True
+        self.header = []
         self.start_time = time.time()
         self.disks = disks
         self.disk_usage = self.get_disk_usage()
         self.net_usage = self.get_net_usage()
+
+        self.average = False
+        self.all_data = []
 
 
     def run(self):
@@ -63,6 +69,7 @@ class HWMonitor(Thread):
                         lbl = d + '.' + key
                         header.append(lbl)
 
+                self.header = header
                 self.writer.writerow(header)
                 self.write_header = False
 
@@ -87,6 +94,9 @@ class HWMonitor(Thread):
             for d in diff_net_usage:
                 for key in diff_net_usage[d]:
                     data.append(diff_net_usage[d][key])
+
+            if self.average:
+                self.all_data.append(data)
 
             self.writer.writerow(data)
             self.outf.flush()
@@ -151,7 +161,23 @@ class HWMonitor(Thread):
 
         return diff
 
+    def start_averaging(self):
+        self.all_data.clear()
+        self.average = True
 
+    def stop_averaging(self):
+        self.average = False
+
+    def get_averages(self):
+
+        df = pd.DataFrame(self.all_data,columns=self.header)
+        df.drop(columns=['elapsed time (s)'],inplace=True)
+        df_des = df.describe(percentiles=[0.1,0.9])
+        lst_des = df_des.to_dict()
+
+        self.all_data.clear()
+
+        return lst_des
 
 
 
@@ -213,3 +239,14 @@ if __name__ == '__main__':
     #b.stop()
 
 
+    hwmon = HWMonitor(1,'test.csv',['nvme0n1p2','nvme0n1p4','nvme0n1p5'])
+    hwmon.start()
+
+    hwmon.start_averaging()
+    time.sleep(10)
+    hwmon.stop_averaging()
+    avgs = hwmon.get_averages()
+    print(avgs)
+
+    hwmon.stop()
+    time.sleep(2)
