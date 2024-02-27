@@ -116,10 +116,10 @@ def train(trial,args_train,ref_dataset,hwm):
     )
 
     trainer = Trainer(trial,model,traindataloader,validdataloader,**config)
-    hwm.start_measuring()
+    hwm.start_averaging()
     logger = trainer.fit()
+    hwm.stop_averaging()
     avgs = hwm.get_averages()
-    hwm.stop_measuring()
     print(avgs)
 
     # stores all stored values in the rootpath of the logger
