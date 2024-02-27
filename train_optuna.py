@@ -25,6 +25,20 @@ import os
 
 
 
+def squeeze_hw_info(hwinfo):
+
+    out = {}
+
+    for key in hwinfo:
+        for ink in hwinfo[key]:
+            name = key+' '+ink
+            val = hwinfo[key][ink]
+
+            out[name] = val
+
+    return out
+
+
 def prepare_dataset(args):
 
     assert args['response'] in ["regression", "classification"]
@@ -146,7 +160,12 @@ def train(trial,args,ref_dataset,hwm):
     logger = trainer.fit()
     hwm.stop_averaging()
     avgs = hwm.get_averages()
-    print(avgs)
+    #print(avgs)
+    squeezed = squeeze_hw_info(avgs)
+    for key in squeezed:
+        print(key)
+        print(squeezed[key])
+        trial.set_user_attr(key, squeezed[key])
     #logger = trainer.fit(callbacks=[sysresmonitor_callback])
 
     # stores all stored values in the rootpath of the logger
