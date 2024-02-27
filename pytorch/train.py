@@ -21,6 +21,24 @@ import os, json
 from hyperparameter_config import hyperparameter_config, hyperparameter_tune
 import optuna
 
+
+
+
+def squeeze_hw_info(hwinfo):
+
+    out = {}
+
+    for key in hwinfo:
+        for ink in hwinfo[key]:
+            name = key+' '+ink
+            val = hwinfo[key][ink]
+
+            out[name] = val
+
+    return out
+
+
+
 def prepare_dataset(args):
     assert args['response'] in ["regression_sigmoid", "regression_relu", "classification"]
 
@@ -120,8 +138,9 @@ def train(trial,args_train,ref_dataset,hwm):
     logger = trainer.fit()
     hwm.stop_averaging()
     avgs = hwm.get_averages()
-    print(avgs)
-
+    squeezed = squeeze_hw_info(avgs)
+    for key in squeezed:
+        trial.set_user_attr(key, squeezed[key])
     # stores all stored values in the rootpath of the logger
     logger.save()
 
