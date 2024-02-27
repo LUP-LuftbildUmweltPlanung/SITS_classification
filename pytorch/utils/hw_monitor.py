@@ -24,6 +24,9 @@ class HWMonitor(Thread):
         self.disk_usage = self.get_disk_usage()
         self.net_usage = self.get_net_usage()
 
+        self.measure = False
+        self.all_data = []
+
 
     def run(self):
         while self.running:
@@ -88,6 +91,9 @@ class HWMonitor(Thread):
                 for key in diff_net_usage[d]:
                     data.append(diff_net_usage[d][key])
 
+            if self.measure:
+                all_data.append(data)
+
             self.writer.writerow(data)
             self.outf.flush()
             time.sleep(self.delay)
@@ -151,7 +157,20 @@ class HWMonitor(Thread):
 
         return diff
 
+    def start_measuring(self):
+        self.all_data.clear()
+        self.measure = True
 
+    def stop_measuring(self):
+        self.measure = False
+
+    def get_averages(self):
+
+        avgs = len(all_data)
+
+        self.all_data.clear()
+
+        return avgs
 
 
 

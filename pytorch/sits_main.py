@@ -20,7 +20,7 @@ hw_args = {
 
 args_train = {
     'batchsize': 256,  # batch size
-    'epochs': 60,  # number of training epochs
+    'epochs': 3,#60,  # number of training epochs
     'workers': 10,  # number of CPU workers to load the next batch
     'data_root': '/uge_mount/FORCE/new_struc/process/result/_SITSrefdata/uge_class_training_tcd/sepfiles/train/', # folder with CSV or cached NPY folder
     'store': '/uge_mount/FORCE/new_struc/process/result/_SITSrefdata/uge_class_training_tcd/',  # store run logger results

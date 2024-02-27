@@ -37,7 +37,8 @@ def prepare_dataset(args):
 
     return ref_dataset
 
-def train(trial,args_train,ref_dataset):
+#def train(trial,args_train,ref_dataset):
+def train(trial,args_train,ref_dataset,hwm):
     # add the splitting part here
     if args_train["tune"]==True:
         new_args_tune = hyperparameter_tune(trial,args_train['model'])
@@ -110,11 +111,16 @@ def train(trial,args_train,ref_dataset):
         valid_every_n_epochs=args_train['valid_every_n_epochs'],
         logger=logger,
         optimizer=optimizer,
-        response = args_train['response']
+        response = args_train['response'],
+        hwmonitor = hwm
     )
 
     trainer = Trainer(trial,model,traindataloader,validdataloader,**config)
+    hwm.start_measuring()
     logger = trainer.fit()
+    avgs = hwm.get_averages()
+    hwm.stop_measuring()
+    print(avgs)
 
     # stores all stored values in the rootpath of the logger
     logger.save()
@@ -190,7 +196,8 @@ def train_init(args_train):
         hwmon = HWMonitor(1,hw_tune_logs_file,hw_args['disks_to_monitor'])
         # start monitoring
         hwmon.start()
-        study.optimize(lambda trial: train(trial, args_train, ref_dataset), n_trials=100)
+        #study.optimize(lambda trial: train(trial, args_train, ref_dataset), n_trials=100)
+        study.optimize(lambda trial: train(trial, args_train, ref_dataset, hwmon), n_trials=100)
         # stop monitoring
         hwmon.stop()
         print(f"Best value: {study.best_value} (params: {study.best_params})")
