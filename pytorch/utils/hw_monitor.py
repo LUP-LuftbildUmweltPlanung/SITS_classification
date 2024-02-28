@@ -81,7 +81,7 @@ class HWMonitor(Thread):
             data.extend([swap.percent,swap.total,swap.used,swap.free])
 
             for gpu in GPUs:
-                data.extend([gpu.load,gpu.memoryFree,gpu.memoryUsed,gpu.memoryUtil*100,gpu.memoryTotal])
+                data.extend([gpu.load*100,gpu.memoryFree,gpu.memoryUsed,gpu.memoryUtil*100,gpu.memoryTotal])
 
             #for key in sensors:
             #    for el in sensors[key]:
