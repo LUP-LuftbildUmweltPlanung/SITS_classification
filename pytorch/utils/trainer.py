@@ -50,7 +50,7 @@ class Trainer():
         self.model = model
         self.checkpoint_every_n_epochs = checkpoint_every_n_epochs
         self.early_stopping_smooth_period = 5
-        self.early_stopping_patience = 5
+        self.early_stopping_patience = 6
         self.not_improved_epochs=0
         self.trial = trial
         #self.early_stopping_metric="kappa"
@@ -61,11 +61,6 @@ class Trainer():
             self.optimizer = optimizer
 
         #self.optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9)
-
-        self.classweights = torch.FloatTensor(traindataloader.dataset.dataset.dataset.classweights)
-
-        if torch.cuda.is_available():
-            self.classweights = self.classweights.cuda()
 
 
         # only save checkpoint if not previously resumed from it
@@ -121,8 +116,8 @@ class Trainer():
                     else:
                         self.trial.report(stats['rmse'], self.epoch)
 
-                    if self.trial.should_prune():
-                        raise optuna.exceptions.TrialPruned()
+                    #if self.trial.should_prune():
+                        #raise optuna.exceptions.TrialPruned()
 
             if self. epoch % self.checkpoint_every_n_epochs ==0:
                 if not self.trial:
@@ -193,17 +188,24 @@ class Trainer():
         for iteration, data in progress_bar:
 
             self.optimizer.zero_grad()
-            inputs, targets, _ = data
+            inputs, targets, doy = data
+
             if torch.cuda.is_available():
                 inputs = inputs.cuda()
                 targets = targets.cuda()
-            logprobabilities, deltas, pts, budget = self.model.forward(inputs.transpose(1,2))
+
+
+            if self.model.__class__.__name__ == "TransformerEncoder":
+                logprobabilities, deltas, pts, budget = self.model.forward(inputs.transpose(1, 2), doy)
+            else:
+                logprobabilities, deltas, pts, budget = self.model.forward(inputs.transpose(1,2))
+
             #print(inputs.transpose(1,2))
             #print(self.model(inputs.transpose(1,2))[0])
             if self.response == "classification":
-                loss = F.nll_loss(logprobabilities, targets[:, 0])
+                loss = F.nll_loss(logprobabilities, targets)
             else:
-                loss = F.mse_loss(logprobabilities.squeeze(1),targets[:, 0])
+                loss = F.mse_loss(logprobabilities.squeeze(1),targets)
 
             loss.backward()
 
@@ -222,7 +224,7 @@ class Trainer():
             if self.response == "classification":
                 prediction = self.model.predict(logprobabilities)
                 stats = metric.add(stats)
-                accuracy_metrics = metric.update_confmat(targets.mode(1)[0].detach().cpu().numpy(),prediction.detach().cpu().numpy())
+                accuracy_metrics = metric.update_confmat(targets.detach().cpu().numpy(),prediction.detach().cpu().numpy())
                 stats["accuracy"] = accuracy_metrics["overall_accuracy"]
                 stats["mean_accuracy"] = accuracy_metrics["accuracy"].mean()
                 stats["mean_recall"] = accuracy_metrics["recall"].mean()
@@ -232,7 +234,7 @@ class Trainer():
             else:
                 stats = metric.add(stats)
                 # Calculate the MSE and R2 for this iteration
-                rmse_r2_stats = metric.update_mat(targets[:, 0].detach().cpu().numpy(),logprobabilities.squeeze(1).detach().cpu().numpy())
+                rmse_r2_stats = metric.update_mat(targets.detach().cpu().numpy(),logprobabilities.squeeze(1).detach().cpu().numpy())
                 # Add MSE and R2 to the `stats` dictionary
                 stats["r2"] = rmse_r2_stats["r2"]
                 stats["rmse"] = rmse_r2_stats["rmse"]
@@ -259,18 +261,21 @@ class Trainer():
         with torch.no_grad():
             for iteration, data in enumerate(dataloader):
 
-                inputs, targets, _ = data
+                inputs, targets, doy = data
 
                 if torch.cuda.is_available():
                     inputs = inputs.cuda()
                     targets = targets.cuda()
 
-                logprobabilities, deltas, pts, budget = self.model.forward(inputs.transpose(1, 2))
+                if self.model.__class__.__name__ == "TransformerEncoder":
+                    logprobabilities, deltas, pts, budget = self.model.forward(inputs.transpose(1, 2), doy)
+                else:
+                    logprobabilities, deltas, pts, budget = self.model.forward(inputs.transpose(1, 2))
 
                 if self.response == "classification":
-                    loss = F.nll_loss(logprobabilities, targets[:, 0])
+                    loss = F.nll_loss(logprobabilities, targets)
                 else:
-                    loss = F.mse_loss(logprobabilities.squeeze(1), targets[:, 0])
+                    loss = F.mse_loss(logprobabilities.squeeze(1), targets)
 
                 stats = dict(
                     loss=loss,
@@ -281,7 +286,7 @@ class Trainer():
                     prediction = self.model.predict(logprobabilities)
                     ## enter numpy world
                     prediction_np = prediction.detach().cpu().numpy()
-                    label = targets.mode(1)[0].detach().cpu().numpy()
+                    label = targets.mode.detach().cpu().numpy()
                     stats = metric.add(stats)
                     accuracy_metrics = metric.update_confmat(label, prediction_np)
                     stats["accuracy"] = accuracy_metrics["overall_accuracy"]
@@ -293,7 +298,7 @@ class Trainer():
                 else:
                     stats = metric.add(stats)
                     # Calculate the MSE and R2 for this iteration
-                    rmse_r2_stats = metric.update_mat(targets[:, 0].detach().cpu().numpy(),logprobabilities.squeeze(1).detach().cpu().numpy())
+                    rmse_r2_stats = metric.update_mat(targets.detach().cpu().numpy(),logprobabilities.squeeze(1).detach().cpu().numpy())
                     # Add MSE and R2 to the `stats` dictionary
                     stats["r2"] = rmse_r2_stats["r2"]
                     stats["rmse"] = rmse_r2_stats["rmse"]

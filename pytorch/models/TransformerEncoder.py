@@ -6,13 +6,13 @@ import os
 from pytorch.models.ClassificationModel import ClassificationModel
 from pytorch.models.transformer.Models import Encoder
 
-SEQUENCE_PADDINGS_VALUE=-1
 
 class TransformerEncoder(ClassificationModel):
     def __init__(self, in_channels=13, len_max_seq=100,
             d_word_vec=512, d_model=512, d_inner=2048,
             n_layers=6, n_head=8, d_k=64, d_v=64,
             dropout=0.2, nclasses=6, response=None):
+
 
         self.response = response
         self.d_model = d_model
@@ -32,40 +32,51 @@ class TransformerEncoder(ClassificationModel):
 
         self.outlinear = nn.Linear(d_model, nclasses, bias=False)
 
-        self.tempmaxpool = nn.MaxPool1d(int(len_max_seq))
+        self.tempmaxpool = nn.AdaptiveMaxPool1d(1)
+        #self.tempmaxpool = nn.MaxPool1d(int(len_max_seq))
 
-    def _logits(self, x):
+    def _logits(self, x, doy):
+
         # b,d,t - > b,t,d
+
         x = x.transpose(1,2)
+
+        mask_x = x
 
         x = self.inlayernorm(x)
 
-        # b,
         x = self.inconv(x.transpose(1,2)).transpose(1,2)
 
         x = self.convlayernorm(x)
 
         batchsize, seq, d = x.shape
 
-        src_pos = torch.arange(1, seq + 1, dtype=torch.long).expand(batchsize, seq)
+        #print(seq)
+        #src_pos = torch.arange(1, seq + 1, dtype=torch.long).expand(batchsize, seq)
+        src_pos = doy.long()
 
         if torch.cuda.is_available():
             src_pos = src_pos.cuda()
 
-
-        enc_output, enc_slf_attn_list = self.encoder.forward(src_seq=x, src_pos=src_pos, return_attns=True)
+        enc_output, enc_slf_attn_list = self.encoder.forward(src_seq=x, src_pos=src_pos, mask_x = mask_x, return_attns=True)
 
         enc_output = self.outlayernorm(enc_output)
+        ##########masking for padding
+        mask = mask_x.sum(dim=-1) > 0
+        mask_unsqueezed = mask.unsqueeze(-1)
+        enc_output = enc_output * mask_unsqueezed.float()
+        ##########masking for padding ende
 
         enc_output = self.tempmaxpool(enc_output.transpose(1, 2)).squeeze(-1)
 
+
         logits = self.outlinear(enc_output)
+
 
         return logits, None, None, None
 
-    def forward(self, x):
-
-        logits, *_ = self._logits(x)
+    def forward(self, x, doy):
+        logits, *_ = self._logits(x, doy)
         if self.response == "classification":
             logprobabilities = F.log_softmax(logits, dim=-1)
         elif self.response == "regression_relu":

@@ -6,11 +6,12 @@ import numpy as np
 from numpy import genfromtxt
 import tqdm
 import glob
-
+from datetime import datetime
+import pickle
 
 class Dataset(torch.utils.data.Dataset):
 
-    def __init__(self, root, classes, cache=True, seed=0, response = None, padding = None, norm = None, bands = None):
+    def __init__(self, root, classes, cache=True, seed=0, response = None, norm = None, bands = None):
 
         self.seed = seed
 
@@ -18,7 +19,6 @@ class Dataset(torch.utils.data.Dataset):
         #seed += sum([ord(ch) for ch in partition])
         np.random.seed(seed)
         torch.random.manual_seed(seed)
-        self.padding = padding
         self.norm = norm
         self.bands = bands
         self.root = root
@@ -36,10 +36,7 @@ class Dataset(torch.utils.data.Dataset):
         self.cache = os.path.join(self.root,"npy")
         self.cache = self.cache.replace("\\", "/")
 
-        if cache and self.cache_exists() and not self.mapping_consistent_with_cache():
-            self.clean_cache()
-
-        if cache and self.cache_exists() and self.mapping_consistent_with_cache():
+        if cache and self.cache_exists():
             print("precached dataset files found at " + self.cache)
             self.load_cached_dataset()
         else:
@@ -54,27 +51,19 @@ class Dataset(torch.utils.data.Dataset):
         #print(self)
 
     def __str__(self):
-        return "Dataset {}. X:{}, y:{} with {} classes".format(self.root,str(len(self.X)) +"x"+ str(self.X[0].shape), self.y.shape, self.nclasses)
+        return "Dataset {}. X:{}, y:{} with {} classes and example doy range: {} - {}".format(self.root,str(len(self.X)) +"x"+ str(self.X[0].shape), self.y.shape, self.nclasses, str(min(self.doy[0])), str(max(self.doy[0])))
 
     def cache_dataset(self):
-        """
-        Iterates though the data folders and stores y, ids, classweights, and sequencelengths
-        X is loaded at with getitem
-        """
-        #ids = self.split(self.partition)
-
         ids = glob.glob(f"{self.trainids}/*.csv")
         assert len(ids) > 0
 
         self.X = list()
+        self.doy = list()  # Add a list to store DOY information
         self.nutzcodes = list()
-        self.stats = dict(
-            not_found=list()
-        )
         self.ids = list()
-        #i = 0
+
         for id in tqdm.tqdm(ids):
-            X,nutzcode = self.load(id)
+            X, nutzcode, doy = self.load(id)  # Adjusted to unpack three values
             if len(nutzcode) > 0:
                 if self.response == "classification":
                     nutzcode = int(nutzcode[0])
@@ -82,115 +71,104 @@ class Dataset(torch.utils.data.Dataset):
                     nutzcode = float(nutzcode[0])
 
                 self.X.append(X)
+                self.doy.append(doy)  # Store DOY information
                 self.nutzcodes.append(nutzcode)
                 self.ids.append(id)
+
         self.y = np.array([nutzcode for nutzcode in self.nutzcodes])
+        self.sequencelengths = np.array([len(X) for X in self.X])  # Simplified
+        self.sequencelength = max(self.sequencelengths)
+        self.ndims = np.array(self.X[0]).shape[1]  # Assuming all X have the same number of dimensions
 
-        self.sequencelengths = np.array([np.array(X).shape[0] for X in self.X])
-        assert len(self.sequencelengths) > 0
-        self.sequencelength = self.sequencelengths.max()
-        self.ndims = np.array(X).shape[1]
+        self.cache_variables(self.y, self.sequencelengths, self.ids, self.ndims, self.X, self.doy)  # Adjusted to also cache DOY
 
-        self.hist,_ = np.histogram(self.y, bins=self.nclasses)
-        self.classweights = 1 / self.hist
 
-        #self.dataweights = np.array([self.classweights[y] for y in self.y])
-        self.cache_variables(self.y, self.sequencelengths, self.ids, self.ndims, self.X, self.classweights)
-
-    def mapping_consistent_with_cache(self):
-        # cached y must have the same number of classes than the mapping
-        return True
-        #return len(np.unique(np.load(os.path.join(self.cache, "y.npy")))) == self.nclasses
-
-    def cache_variables(self, y, sequencelengths, ids, ndims, X, classweights):
+    def cache_variables(self, y, sequencelengths, ids, ndims, X, doy):
         os.makedirs(self.cache, exist_ok=True)
         # cache
-        np.save(os.path.join(self.cache, "classweights.npy"), classweights)
         np.save(os.path.join(self.cache, "y.npy"), y)
         np.save(os.path.join(self.cache, "ndims.npy"), ndims)
         np.save(os.path.join(self.cache, "sequencelengths.npy"), sequencelengths)
         np.save(os.path.join(self.cache, "ids.npy"), ids)
-        #np.save(os.path.join(self.cache, "dataweights.npy"), dataweights)
-        #print(y)
-        #print(X)
-        np.save(os.path.join(self.cache, "X.npy"), np.array(X))
+        #doy_array = np.array(doy, dtype=object)
+        #np.save(os.path.join(self.cache, "doy.npy"), doy_array)
+        #X_array = np.array(X, dtype=object)
+        #np.save(os.path.join(self.cache, "X.npy"), X_array)
+        #np.savez(os.path.join(self.cache, "doy.npz"), doy)
+        #np.savez(os.path.join(self.cache, "X.npz"), X)
+        with open(os.path.join(self.cache, "doy.pkl"), 'wb') as f:
+            pickle.dump(doy,f)
+        with open(os.path.join(self.cache, "X.pkl"), 'wb') as f:
+            pickle.dump(X,f)
 
+    # When saving:
+
+
+    # When loading:
     def load_cached_dataset(self):
         # load
-        self.classweights = np.load(os.path.join(self.cache, "classweights.npy"))
         self.y = np.load(os.path.join(self.cache, "y.npy"))
         self.ndims = int(np.load(os.path.join(self.cache, "ndims.npy")))
         self.sequencelengths = np.load(os.path.join(self.cache, "sequencelengths.npy"))
         self.sequencelength = self.sequencelengths.max()
         self.ids = np.load(os.path.join(self.cache, "ids.npy"))
-        self.X = np.load(os.path.join(self.cache, "X.npy"), allow_pickle=True)
+        #self.doy = np.load(os.path.join(self.cache, "doy.npy"), allow_pickle=True)
+        #self.X = np.load(os.path.join(self.cache, "X.npy"), allow_pickle=True)
+        #self.doy = np.load(os.path.join(self.cache, "doy.npz"), allow_pickle=True)
+        #self.X = np.load(os.path.join(self.cache, "X.npz"), allow_pickle=True)
+        with open(os.path.join(self.cache, "doy.pkl"), 'rb') as f:
+            self.doy = pickle.load(f)
+        with open(os.path.join(self.cache, "X.pkl"), 'rb') as f:
+            self.X = pickle.load(f)
+
 
     def cache_exists(self):
-        weightsexist = os.path.exists(os.path.join(self.cache, "classweights.npy"))
         yexist = os.path.exists(os.path.join(self.cache, "y.npy"))
         ndimsexist = os.path.exists(os.path.join(self.cache, "ndims.npy"))
         sequencelengthsexist = os.path.exists(os.path.join(self.cache, "sequencelengths.npy"))
         idsexist = os.path.exists(os.path.join(self.cache, "ids.npy"))
-        Xexists = os.path.exists(os.path.join(self.cache, "X.npy"))
-        return yexist and sequencelengthsexist and idsexist and ndimsexist and Xexists and weightsexist
+        Xexists = os.path.exists(os.path.join(self.cache, "X.pkl"))
+        doyxists = os.path.exists(os.path.join(self.cache, "doy.pkl"))
+        return yexist and sequencelengthsexist and idsexist and ndimsexist and Xexists and doyxists
 
     def clean_cache(self):
-        os.remove(os.path.join(self.cache, "classweights.npy"))
         os.remove(os.path.join(self.cache, "y.npy"))
         os.remove(os.path.join(self.cache, "ndims.npy"))
         os.remove(os.path.join(self.cache, "sequencelengths.npy"))
         os.remove(os.path.join(self.cache, "ids.npy"))
         #os.remove(os.path.join(self.cache, "dataweights.npy"))
-        os.remove(os.path.join(self.cache, "X.npy"))
+        os.remove(os.path.join(self.cache, "X.npz"))
+        os.remove(os.path.join(self.cache, "doy.npz"))
         os.removedirs(self.cache)
 
     def load(self, csv_file):
-        """['B1', 'B10', 'B11', 'B12', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8',
-       'B8A', 'B9', 'QA10', 'QA20', 'QA60', 'doa', 'label', 'id']"""
 
-        # data = genfromtxt(csv_file, delimiter=',', skip_header=1,filling_values=9999)
-        # X = data[:, 3:] * self.norm
-        # nutzcodes = data[:, 2]
+        data = genfromtxt(csv_file, delimiter=',', skip_header=1,filling_values=0) ###was 9999 before!!
+        X = data[:, 3:] * self.norm
+        nutzcodes = data[:, 2]
+        doy = data[:, 1]
 
-        # Read CSV file using pandas
-        df = pd.read_csv(csv_file)  # header is assumed to be the first row by default
-        # Fill missing values with 9999
-        df.fillna(9999, inplace=True)
-        # Convert selected data to numpy array and multiply by norm
-        X = df.iloc[:, 3:].to_numpy() * self.norm
-        nutzcodes = df.iloc[:, 2].to_numpy()
+        # # Read CSV file using pandas
+        # df = pd.read_csv(csv_file)  # header is assumed to be the first row by default
+        # # Fill missing values with 9999
+        # df.fillna(9999, inplace=True)
+        # # Convert selected data to numpy array and multiply by norm
+        # X = df.iloc[:, 3:].to_numpy() * self.norm
+        # nutzcodes = df.iloc[:, 2].to_numpy()
 
-        return X, nutzcodes
+        return X, nutzcodes, doy
 
 
     def __len__(self):
         return len(self.ids)
 
+
     def __getitem__(self, idx):
+        X, y, doy = self.X[idx], self.y[idx], self.doy[idx]
 
-        load_file = False
-        if load_file:
-            id = self.ids[idx]
-            csvfile = os.path.join(self.data_folder, "{}.csv".format(id))
-            X,nutzcodes = self.load(csvfile)
-            y = self.nutzcodes
-        else:
+        X_tensor = torch.from_numpy(X).float()
+        doy_tensor = torch.from_numpy(doy).float()  # Assuming doy is already a numpy array
+        y_tensor = torch.tensor(y, dtype=torch.long if self.response == "classification" else torch.float)
 
-            X = self.X[idx]
-            y = np.array([self.y[idx]] * X.shape[0]) # repeat y for each entry in x
-        # pad up to maximum sequence length
-        t = X.shape[0]
+        return X_tensor, y_tensor, doy_tensor
 
-
-        npad = self.sequencelengths.max() - t
-        X = np.pad(X,[(0,npad), (0,0)],'constant', constant_values=self.padding)
-        y = np.pad(y, (0, npad), 'constant', constant_values=self.padding)
-
-
-        X = torch.from_numpy(X).type(torch.FloatTensor)
-        if self.response == "classification":
-            y = torch.from_numpy(y).type(torch.LongTensor)
-        else:
-            y = torch.from_numpy(y).type(torch.FloatTensor)
-
-        return X, y, self.ids[idx]

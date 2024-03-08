@@ -7,8 +7,7 @@ import psutil
 from psutil._common import bytes2human
 
 import csv
-
-
+import pandas as pd
 
 class HWMonitor(Thread):
     def __init__(self,delay,out_file_name,disks):
@@ -19,10 +18,14 @@ class HWMonitor(Thread):
         self.outf = open(out_file_name,'w')
         self.writer = csv.writer(self.outf)
         self.write_header = True
+        self.header = []
         self.start_time = time.time()
         self.disks = disks
         self.disk_usage = self.get_disk_usage()
         self.net_usage = self.get_net_usage()
+
+        self.average = False
+        self.all_data = []
 
 
     def run(self):
@@ -63,6 +66,7 @@ class HWMonitor(Thread):
                         lbl = d + '.' + key
                         header.append(lbl)
 
+                self.header = header
                 self.writer.writerow(header)
                 self.write_header = False
 
@@ -74,7 +78,7 @@ class HWMonitor(Thread):
             data.extend([swap.percent,swap.total,swap.used,swap.free])
 
             for gpu in GPUs:
-                data.extend([gpu.load,gpu.memoryFree,gpu.memoryUsed,gpu.memoryUtil*100,gpu.memoryTotal])
+                data.extend([gpu.load*100,gpu.memoryFree,gpu.memoryUsed,gpu.memoryUtil*100,gpu.memoryTotal])
 
             #for key in sensors:
             #    for el in sensors[key]:
@@ -87,6 +91,9 @@ class HWMonitor(Thread):
             for d in diff_net_usage:
                 for key in diff_net_usage[d]:
                     data.append(diff_net_usage[d][key])
+
+            if self.average:
+                self.all_data.append(data)
 
             self.writer.writerow(data)
             self.outf.flush()
@@ -151,9 +158,33 @@ class HWMonitor(Thread):
 
         return diff
 
+    def start_averaging(self):
+        self.all_data.clear()
+        self.average = True
+
+    def stop_averaging(self):
+        self.average = False
+
+    def get_averages(self):
+
+        df = pd.DataFrame(self.all_data,columns=self.header)
+        df.drop(columns=['elapsed time (s)'],inplace=True)
+        df_des = df.describe(percentiles=[0.1,0.9])
+        lst_des = df_des.to_dict()
+
+        self.all_data.clear()
+
+        return lst_des
 
 
-
+def squeeze_hw_info(hwinfo):
+    out = {}
+    for key in hwinfo:
+        for ink in hwinfo[key]:
+            name = key+' '+ink
+            val = hwinfo[key][ink]
+            out[name] = val
+    return out
 
 def disk_info():
 

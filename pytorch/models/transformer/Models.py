@@ -2,13 +2,13 @@
 import torch
 import torch.nn as nn
 import numpy as np
-import pytorch.models.transformer.Constants as Constants
+#import pytorch.models.transformer.Constants as Constants
 from pytorch.models.transformer.Layers import EncoderLayer, DecoderLayer
 
 __author__ = "Yu-Hsiang Huang"
-
+Pad_Value = 0
 def get_non_pad_mask(seq):
-    return seq[:,:,0].ne(Constants.PAD).type(torch.float).unsqueeze(-1)
+    return seq[:,:,0].ne(Pad_Value).type(torch.float).unsqueeze(-1)
 
 def get_sinusoid_encoding_table(n_position, d_hid, padding_idx=None):
     ''' Sinusoid position encoding table '''
@@ -38,7 +38,7 @@ def get_attn_key_pad_mask(seq_k, seq_q):
 
     # Expand to fit the shape of key query attention matrix.
     len_q = seq_q.size(1)
-    padding_mask = seq_k.eq(Constants.PAD)
+    padding_mask = seq_k.eq(Pad_Value)
     padding_mask = padding_mask[:,:,0].unsqueeze(1).expand(-1, len_q, -1)  # b x lq x lk
 
     return padding_mask
@@ -70,28 +70,33 @@ class Encoder(nn.Module):
         #   n_src_vocab, d_word_vec, padding_idx=Constants.PAD)
 
         self.position_enc = nn.Embedding.from_pretrained(
-            get_sinusoid_encoding_table(n_position, d_word_vec, padding_idx=0),
+            get_sinusoid_encoding_table(n_position, d_word_vec, padding_idx=Pad_Value),
             freeze=True)
 
         self.layer_stack = nn.ModuleList([
             EncoderLayer(d_model, d_inner, n_head, d_k, d_v, dropout=dropout)
             for _ in range(n_layers)])
 
-    def forward(self, src_seq, src_pos, return_attns=False):
+    def forward(self, src_seq, src_pos, mask_x, return_attns=False):
 
         enc_slf_attn_list = []
 
         # -- Prepare masks
-        #slf_attn_mask = get_attn_key_pad_mask(seq_k=src_seq, seq_q=src_seq)
-        slf_attn_mask = torch.zeros((src_seq.shape[0],src_seq.shape[1],src_seq.shape[1]),dtype=torch.uint8)
-        non_pad_mask = get_non_pad_mask(src_seq)
+        slf_attn_mask = get_attn_key_pad_mask(seq_k=mask_x, seq_q=mask_x)
+        #slf_attn_mask = torch.zeros((src_seq.shape[0],src_seq.shape[1],src_seq.shape[1]),dtype=torch.uint8)
+        non_pad_mask = get_non_pad_mask(mask_x)
 
         if torch.cuda.is_available():
             slf_attn_mask = slf_attn_mask.cuda()
             non_pad_mask = non_pad_mask.cuda()
 
+        masked_src_seq = src_seq * non_pad_mask.float()  # Convert mask to float for multiplication
+        # Apply mask to src_pos to ignore padded positions in positional encoding
+        masked_src_pos = src_pos * non_pad_mask.squeeze(-1)  # Assuming non_pad_mask is broadcastable to src_pos dimensions
+        masked_src_pos = masked_src_pos.long()
         # -- Forward self.src_word_emb(src_seq)
-        enc_output = src_seq + self.position_enc(src_pos)
+
+        enc_output = masked_src_seq + self.position_enc(masked_src_pos)
 
         for enc_layer in self.layer_stack:
             enc_output, enc_slf_attn = enc_layer(

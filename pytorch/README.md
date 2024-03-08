@@ -11,6 +11,9 @@ Code for Satellite Image TimeSeries Classification. Adjusted from [Marc Rußwurm
 
 **pip install -r requirements.txt**
 
+**sudo apt-get install xterm**
+
+**force docker Version 3.7.11**
 ### Usage
 ...
 
