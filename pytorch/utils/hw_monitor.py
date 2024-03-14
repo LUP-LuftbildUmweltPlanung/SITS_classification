@@ -186,6 +186,7 @@ def squeeze_hw_info(hwinfo):
             out[name] = val
     return out
 
+
 def disk_info():
 
     templ = "%-17s %8s %8s %8s %5s%% %9s  %s"
@@ -213,11 +214,12 @@ def disk_info():
         print(line)
 
 
-def plot_logs(filepath,disks,eths):
+
+def plot_logs(log_filepath,fig_filepath,disks,eths):
 
     import matplotlib.pyplot as plt
 
-    df = pd.read_csv(filepath)
+    df = pd.read_csv(log_filepath)
 
     groups=[['Cpu','%MEM','%Swap'],
             ['Gpu','GPU0 %MEM']]
@@ -270,6 +272,11 @@ def plot_logs(filepath,disks,eths):
             axt.legend(loc="upper right")
 
     axi.set_xlabel('elapsed time (s)')
+
+    fig.savefig(fig_filepath)
+
+
+
 
 
 #class PrintB(Thread):
