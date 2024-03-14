@@ -213,6 +213,64 @@ def disk_info():
         print(line)
 
 
+def plot_logs(filepath,disks,eths):
+
+    import matplotlib.pyplot as plt
+
+    df = pd.read_csv(filepath)
+
+    groups=[['Cpu','%MEM','%Swap'],
+            ['Gpu','GPU0 %MEM']]
+    for disk in disks.split(','):
+        groups.append([x for x in df.columns if disk.strip() in x])
+    for eth in eths.split(','):
+        groups.append([x for x in df.columns if eth.strip() in x])
+
+    print(groups)
+    #remove empty lists, if in the disks or eths we have non-existent entry
+    groups = list(filter(None, groups))
+    print(groups)
+
+    colours = ['r','g','b','gold']
+
+    fig,ax = plt.subplots(len(groups), figsize=(12,24))
+
+    for axi,group in zip(ax,groups):
+        if group[0] == 'Cpu':
+            axi.plot(df_sub[group[0]],color=colours[0],label=group[0])
+            axi.set_ylabel(group[0])
+            axi.legend(loc="upper left")
+            axt = axi.twinx()
+            ci = 1
+            for gg in group[-2:]:
+                axt.plot(df_sub[gg],color=colours[ci],label=gg)
+                ci+=1
+            axt.set_ylabel(group[-2]+'\n' + group[-1])
+            axt.legend(loc="upper right")
+        elif group[0] == 'Gpu':
+            axi.plot(df_sub[group[0]],color=colours[0],label=group[0])
+            axi.set_ylabel(group[0])
+            axi.legend(loc="upper left")
+            axt = axi.twinx()
+            axt.plot(df_sub[group[-1]],color=colours[1],label=group[1])
+            axt.set_ylabel(group[-1])
+            axt.legend(loc="upper right")
+        else:
+            ci = 0
+            for gg in group[:2]:
+                axi.plot(df_sub[gg],color=colours[ci],label=gg)
+                ci+=1
+            axi.set_ylabel(group[0]+'\n' + group[1])
+            axi.legend(loc="upper left")
+            axt = axi.twinx()
+            for gg in group[-2:]:
+                axt.plot(df_sub[gg],color=colours[ci],label=gg)
+                ci+=1
+            axt.set_ylabel(group[-2]+'\n' + group[-1])
+            axt.legend(loc="upper right")
+
+    axi.set_xlabel('elapsed time (s)')
+
 
 #class PrintB(Thread):
 #    def __init__(self):
