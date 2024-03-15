@@ -215,7 +215,7 @@ def disk_info():
 
 
 
-def plot_logs(log_filepath,fig_filepath,disks,eths):
+def plot_logs(log_filepath,fig_filepath,disks_and_eths):
 
     import matplotlib.pyplot as plt
 
@@ -237,10 +237,10 @@ def plot_logs(log_filepath,fig_filepath,disks,eths):
 
     groups=[['Total CPU usage','%MEM','%Swap'],
             ['Total GPU usage','GPU %MEM']]
-    for disk in disks.split(','):
+    for disk in disks_and_eths.split(','):
         groups.append([x for x in df.columns if disk.strip() in x])
-    for eth in eths.split(','):
-        groups.append([x for x in df.columns if eth.strip() in x])
+    #for eth in eths.split(','):
+    #    groups.append([x for x in df.columns if eth.strip() in x])
 
     #remove empty lists, if in the disks or eths we have non-existent entry
     groups = list(filter(None, groups))
@@ -286,8 +286,6 @@ def plot_logs(log_filepath,fig_filepath,disks,eths):
     axi.set_xlabel('elapsed time (s)')
 
     fig.savefig(fig_filepath)
-
-
 
 
 
