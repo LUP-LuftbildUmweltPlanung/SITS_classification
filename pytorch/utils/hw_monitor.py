@@ -221,52 +221,64 @@ def plot_logs(log_filepath,fig_filepath,disks,eths):
 
     df = pd.read_csv(log_filepath)
 
-    groups=[['Cpu','%MEM','%Swap'],
-            ['Gpu','GPU0 %MEM']]
+    # get cpu columns
+    cpu_cols = [col for col in df.columns if '%Cpu' in col]
+    # get gpu columns
+    gpu_cols = [col for col in df.columns if '%GPU' in col]
+    gpumemcols = [col for col in df.columns if 'GPU' in col and '%GPU' not in col]
+    gpumemcol_tot = [col for col in gpumemcols if 'MEM Total' in col]
+    gpumemcol_free = [col for col in gpumemcols if 'MEM Free' in col]
+
+    df['Total CPU usage'] = df[cpu_cols].sum(axis=1)/100
+    df['Total GPU usage'] = df[gpu_cols].sum(axis=1)/100
+    GPU_tot_mem = df[gpumemcol_tot].sum(axis=1)
+    GPU_free_mem = df[gpumemcol_free].sum(axis=1)
+    df['GPU %MEM'] = 100*GPU_free_mem/GPU_tot_mem
+
+    groups=[['Total CPU usage','%MEM','%Swap'],
+            ['Total GPU usage','GPU %MEM']]
     for disk in disks.split(','):
         groups.append([x for x in df.columns if disk.strip() in x])
     for eth in eths.split(','):
         groups.append([x for x in df.columns if eth.strip() in x])
 
-    print(groups)
     #remove empty lists, if in the disks or eths we have non-existent entry
     groups = list(filter(None, groups))
-    print(groups)
 
     colours = ['r','g','b','gold']
 
     fig,ax = plt.subplots(len(groups), figsize=(12,24))
 
     for axi,group in zip(ax,groups):
-        if group[0] == 'Cpu':
-            axi.plot(df_sub[group[0]],color=colours[0],label=group[0])
+        if group[0] == 'Total CPU usage':
+            axi.plot(df[group[0]],color=colours[0],label=group[0])
             axi.set_ylabel(group[0])
             axi.legend(loc="upper left")
             axt = axi.twinx()
             ci = 1
             for gg in group[-2:]:
-                axt.plot(df_sub[gg],color=colours[ci],label=gg)
+                axt.plot(df[gg],color=colours[ci],label=gg)
                 ci+=1
             axt.set_ylabel(group[-2]+'\n' + group[-1])
             axt.legend(loc="upper right")
-        elif group[0] == 'Gpu':
-            axi.plot(df_sub[group[0]],color=colours[0],label=group[0])
+        elif group[0] == 'Total GPU usage':
+            axi.plot(df[group[0]],color=colours[0],label=group[0])
             axi.set_ylabel(group[0])
             axi.legend(loc="upper left")
             axt = axi.twinx()
-            axt.plot(df_sub[group[-1]],color=colours[1],label=group[1])
+            axt.plot(df[group[-1]],color=colours[1],label=group[1])
             axt.set_ylabel(group[-1])
             axt.legend(loc="upper right")
         else:
             ci = 0
             for gg in group[:2]:
-                axi.plot(df_sub[gg],color=colours[ci],label=gg)
+                axi.plot(df[gg],color=colours[ci],label=gg)
                 ci+=1
             axi.set_ylabel(group[0]+'\n' + group[1])
             axi.legend(loc="upper left")
             axt = axi.twinx()
             for gg in group[-2:]:
-                axt.plot(df_sub[gg],color=colours[ci],label=gg)
+                axt.plot(df[gg],color=colours[ci],label=gg)
                 ci+=1
             axt.set_ylabel(group[-2]+'\n' + group[-1])
             axt.legend(loc="upper right")
