@@ -33,6 +33,35 @@ def get_sinusoid_encoding_table(n_position, d_hid, padding_idx=None):
     else:
         return torch.FloatTensor(sinusoid_table)
 
+
+def get_sinusoid_encoding_table_month(d_hid, padding_idx=None):
+    """ Sinusoid month encoding table, for 12 months indexed from 0-11.
+        Assumes d_hid is even and creates an encoding table of shape (12, d_hid)."""
+
+    def cal_month_angle(month_idx, hid_idx):
+        # month_idx ranges from 0 to 11, we map this to the angle between 0 and 2*pi
+        angle = (month_idx / 12) * (2 * np.pi)
+        return angle if hid_idx % 2 == 0 else angle
+
+    def get_month_angle_vec(month):
+        return [cal_month_angle(month, i) for i in range(d_hid)]
+
+    # Create a table with 12 positions (for 12 months)
+    month_table = np.array([get_month_angle_vec(month) for month in range(12)])
+
+    # Apply sin to even indices and cos to odd indices
+    month_table[:, 0::2] = np.sin(month_table[:, 0::2])
+    month_table[:, 1::2] = np.cos(month_table[:, 1::2])
+
+    if padding_idx is not None:
+        # zero vector for padding dimension
+        month_table[padding_idx] = 0.
+
+    # Convert to a PyTorch tensor and move to GPU if available
+    if torch.cuda.is_available():
+        return torch.FloatTensor(month_table).cuda()
+    else:
+        return torch.FloatTensor(month_table)
 def get_attn_key_pad_mask(seq_k, seq_q):
     ''' For masking out the padding part of key sequence. '''
 
@@ -73,11 +102,15 @@ class Encoder(nn.Module):
             get_sinusoid_encoding_table(n_position, d_word_vec, padding_idx=Pad_Value),
             freeze=True)
 
+        self.month_position_enc = nn.Embedding.from_pretrained(
+            get_sinusoid_encoding_table_month(d_word_vec, padding_idx=Pad_Value),
+            freeze=True)
+
         self.layer_stack = nn.ModuleList([
             EncoderLayer(d_model, d_inner, n_head, d_k, d_v, dropout=dropout)
             for _ in range(n_layers)])
 
-    def forward(self, src_seq, src_pos, mask_x, return_attns=False):
+    def forward(self, src_seq, src_pos, src_pos_month, mask_x, return_attns=False):
 
         enc_slf_attn_list = []
 
@@ -94,9 +127,13 @@ class Encoder(nn.Module):
         # Apply mask to src_pos to ignore padded positions in positional encoding
         masked_src_pos = src_pos * non_pad_mask.squeeze(-1)  # Assuming non_pad_mask is broadcastable to src_pos dimensions
         masked_src_pos = masked_src_pos.long()
+        masked_src_pos_month = src_pos_month * non_pad_mask.squeeze(-1)  # Assuming non_pad_mask is broadcastable to src_pos dimensions
+        masked_src_pos_month = masked_src_pos_month.long()
         # -- Forward self.src_word_emb(src_seq)
 
-        enc_output = masked_src_seq + self.position_enc(masked_src_pos)
+        ##print(self.month_position_enc(masked_src_pos_month))
+        enc_output = masked_src_seq + self.position_enc(masked_src_pos) + self.month_position_enc(masked_src_pos_month)
+        #enc_output = masked_src_seq + self.position_enc(masked_src_pos)
 
         for enc_layer in self.layer_stack:
             enc_output, enc_slf_attn = enc_layer(

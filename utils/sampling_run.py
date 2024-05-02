@@ -17,12 +17,13 @@ import geopandas as gpd
 import tempfile
 import subprocess
 from rasterio.transform import from_origin
+
 #shapely.speedups.disable()
 #os.chdir(r"E:\++++Promotion\Verwaltung\Publikation_1\Workflow_Scripts\final")
 
 
 
-def generate_points(sentinel20m, tolerance, raster, aoi_shp, total_points, value_ranges, existing_points_gdf=None):
+def generate_points(tolerance, raster, aoi_shp, total_points, value_ranges, distance, existing_points_gdf=None):
     # Open the raster file
     with rasterio.open(raster) as src:
         raster_crs = src.crs  # Get the coordinate reference system of the raster
@@ -40,10 +41,25 @@ def generate_points(sentinel20m, tolerance, raster, aoi_shp, total_points, value
         raster_image = raster_image[0]  # Get the first band
         nodata_value = src.nodata  # Get the nodata value for the raster
 
-        if sentinel20m == True:
-            # Set every second row and column to nodata
-            raster_image[::2, :] = nodata_value
-            raster_image[:, ::2] = nodata_value
+        skip_factor = distance // 10
+
+        if skip_factor > 1:
+            #raster_image[::skip_factor, :] = nodata_value
+            #raster_image[:, ::skip_factor] = nodata_value
+
+            # Create an empty mask of the same shape as raster_image, initially setting everything to True (mark as NoData)
+            mask = np.ones_like(raster_image, dtype=bool)
+            # Generate arrays of row indices and column indices using np.meshgrid
+            rows, cols = np.meshgrid(np.arange(raster_image.shape[0]), np.arange(raster_image.shape[1]), indexing='ij')
+            # Update the mask to False only where both row and column indices are multiples of skip_factor
+            mask[(rows % skip_factor == 0) & (cols % skip_factor == 0)] = False
+            # Apply the mask to the raster_image by setting True positions in the mask to nodata_value
+            raster_image[mask] = nodata_value
+
+        #if sentinel20m == True:
+         #   # Set every second row and column to nodata
+          #  raster_image[::2, :] = nodata_value
+           # raster_image[:, ::2] = nodata_value
 
         points = []  # List to store generated points
         ranges = []  # List to store the value ranges corresponding to the generated points
@@ -134,16 +150,22 @@ def generate_points_based_on_distance(tolerance, aoi_shp, total_points, distance
 
     return points  # Return the list of generated points
 
-
-def sampling(force_dir,local_dir,force_skel,scripts_skel,temp_folder,mask_folder,
- proc_folder,data_folder,project_name,hold,aoi_files,output_folder,cities,years,percent,
- value_ranges_vegh,value_ranges_tcd,sentinel20m,vegh_files,tcd_files,distance):
+def sampling(data_folder,project_name,aoi_files,output_n,output_n_m,percent,distance,
+    value_ranges_vegh,value_ranges_tcd,vegh_files,tcd_files,**kwargs):
     tolerance = 2
-    output_folder = f"{data_folder}/_ReferencePoints/{project_name}"
+    output_folder = f"{data_folder}/_SamplingPoints/{project_name}"
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
+    #print(vegh_files)
+    #print(tcd_files)
+    #print(aoi_files)
 
-    for vegh_file, tcd_file, aoi_file, city, year in zip(vegh_files, tcd_files, aoi_files, cities, years):
+    if vegh_files is None:
+        vegh_files = [None] * len(aoi_files)
+    if tcd_files is None:
+        tcd_files = [None] * len(aoi_files)
+
+    for vegh_file, tcd_file, aoi_file, city, year in zip(vegh_files, tcd_files, aoi_files, output_n, output_n_m):
         print(f"started calculating points for {aoi_file}")
 
         if vegh_file == None and tcd_file == None:
@@ -203,12 +225,20 @@ def sampling(force_dir,local_dir,force_skel,scripts_skel,temp_folder,mask_folder
         else:
             print(f"sampling with grids for stratification")
             aoi_gdf = gpd.read_file(aoi_file)
+
+            if 'area' not in aoi_gdf.columns:
+                print("area column not found in shapefile ... calculating")
+                # Assuming the CRS of the GeoDataFrame is in meters.
+                # If not, you'll need to project it to an appropriate CRS first.
+                aoi_gdf['area'] = aoi_gdf.geometry.area
+
             area_sum = aoi_gdf['area'].sum()
 
-            if sentinel20m == True:
-                total_points = round(area_sum * percent * 0.01 * 0.25) #area_sum(m²) * ProzentAnteil * 1/100, weil Sentinel Pixel 100m² * 1/4, weil Sentinel 20 Meter Pixel
-            else:
-                total_points = round(area_sum * percent * 0.01) #area_sum(m²) * ProzentAnteil * 1/100, weil Sentinel Pixel 100m² * 1/4, weil Sentinel 20 Meter Pixel
+            total_points = round(area_sum * percent * 0.01 * (100 / (distance * distance))) #area_sum(m²) * ProzentAnteil * 1/100, weil Sentinel Pixel 100m² * 1/4, weil Sentinel 20 Meter Pixel
+            #if sentinel20m == True:
+             #   total_points = round(area_sum * percent * 0.01 * 0.25) #area_sum(m²) * ProzentAnteil * 1/100, weil Sentinel Pixel 100m² * 1/4, weil Sentinel 20 Meter Pixel
+            #else:
+             #   total_points = round(area_sum * percent * 0.01) #area_sum(m²) * ProzentAnteil * 1/100, weil Sentinel Pixel 100m²
 
             if tcd_file == None:
                 total_points_vegh = int(total_points)
@@ -216,7 +246,7 @@ def sampling(force_dir,local_dir,force_skel,scripts_skel,temp_folder,mask_folder
                 total_points_vegh = int(total_points * 0.5)
                 total_points_tcd = int(total_points * 0.5)
 
-            points_vegh, ranges_vegh = generate_points(sentinel20m, tolerance, vegh_file, aoi_file, total_points_vegh, value_ranges_vegh)
+            points_vegh, ranges_vegh = generate_points(tolerance, vegh_file, aoi_file, total_points_vegh, value_ranges_vegh, distance)
 
             if tcd_file == None:
                 all_points = points_vegh
@@ -225,7 +255,7 @@ def sampling(force_dir,local_dir,force_skel,scripts_skel,temp_folder,mask_folder
             else:
                 points_vegh_gdf = gpd.GeoDataFrame(geometry=points_vegh)
                 points_vegh_gdf.sindex
-                points_tcd, ranges_tcd = generate_points(sentinel20m, tolerance, tcd_file, aoi_file, total_points_tcd, value_ranges_tcd, existing_points_gdf=points_vegh_gdf)
+                points_tcd, ranges_tcd = generate_points(tolerance, tcd_file, aoi_file, total_points_tcd, value_ranges_tcd, distance, existing_points_gdf=points_vegh_gdf)
                 all_points = points_vegh + points_tcd
                 all_ranges = ranges_vegh + ranges_tcd
 
@@ -239,8 +269,8 @@ def sampling(force_dir,local_dir,force_skel,scripts_skel,temp_folder,mask_folder
             gdf.to_file(output_filename)
 
             print(f"Finished processing for {city} {year}")
-            
-            
+            # print stratifications:
+            analyze_shapefiles(f'{data_folder}/_SamplingPoints/{project_name}')
 
 
 def modify_and_run_script(script_path, shp_value, tif_value, output_value):
@@ -264,8 +294,10 @@ def modify_and_run_script(script_path, shp_value, tif_value, output_value):
     os.remove(temp_file.name)
 
 
-def extract_ref(script_path,shapefile_path,raster_path,o_folder,column_name):
-
+def extract_ref(project_name,raster_path,column_name,scripts_skel,data_folder,**kwargs):
+    script_path = f"{scripts_skel}/zonal_rasterstats_mp.py"
+    shapefile_path = sorted(glob.glob(f"{data_folder}/_SamplingPoints/{project_name}/*shp"))
+    o_folder = f"{data_folder}/_SamplingPoints/{project_name}"
     for shape, raster in zip(shapefile_path, raster_path):
         print(f"extracting for {shape}")
 
@@ -275,15 +307,18 @@ def extract_ref(script_path,shapefile_path,raster_path,o_folder,column_name):
             os.makedirs(o_folder)
         # Call the function
 
+        # Check if the CRS matches EPSG:3035
+        gdf = gpd.read_file(shape)
+        if gdf.crs != "EPSG:3035":
+            print(f"detected crs {gdf.crs} reprojecting to EPSG:3035")
+            gdf = gdf.to_crs("EPSG:3035")
+            gdf.to_file(shape.replace(".shp","_3035.shp"))
+            shape = shape.replace(".shp","_3035.shp")
+
         modify_and_run_script(script_path, shape, raster, f"{o_folder}/{shape_name}.shp")
 
         # Read the shapefile with geopandas
         gdf = gpd.read_file(f"{o_folder}/{shape_name}.shp")
-
-        # Check if the CRS matches EPSG:3035
-        if gdf.crs != "EPSG:3035":
-            print(f"detected crs {gdf.crs} reprojecting to EPSG:3035")
-            gdf = gdf.to_crs("EPSG:3035")
 
         # Extract raster values using point_query
         # raster_values = point_query(gdf.geometry, raster)
@@ -298,6 +333,18 @@ def extract_ref(script_path,shapefile_path,raster_path,o_folder,column_name):
 
         # Reorder the columns
         gdf = gdf[['X', 'Y', column_name, 'geometry']]
+
+        # Count rows before dropping
+        initial_row_count = len(gdf)
+        # Drop rows where column_name is empty
+        gdf = gdf.dropna(subset=[column_name])
+        # Count rows after dropping
+        final_row_count = len(gdf)
+        # Calculate number of dropped rows
+        dropped_rows = initial_row_count - final_row_count
+        # Print the number of dropped rows
+        print(f"{dropped_rows} rows dropped because of missing values!")
+
         # Drop the CID column
         gdf_csv = gdf.drop('geometry', axis=1)
         # Export the file as CSV without index and header
@@ -307,4 +354,52 @@ def extract_ref(script_path,shapefile_path,raster_path,o_folder,column_name):
 
         gdf.to_file(f"{o_folder}/{shape_name}_extract.shp", index=False, header=False, sep=' ')
         gdf_csv.to_csv(f"{o_folder}/{shape_name}_extract.csv", index=False, header=False, sep=' ')
-        os.remove(f"{o_folder}/{shape_name}.shp")
+        #os.remove(f"{o_folder}/{shape_name}.shp")
+
+
+
+def analyze_shapefiles(directory, column_name='val_range', prefixes=None):
+    if prefixes is None:
+        prefixes = ['vegh', 'tcd']  # Default prefixes to look for
+
+    # Store results in a dictionary
+    results = {}
+
+    # Loop through all the files in the directory
+    for filename in os.listdir(directory):
+        if filename.endswith(".shp"):
+            filepath = os.path.join(directory, filename)
+            try:
+                # Load the shapefile
+                gdf = gpd.read_file(filepath)
+
+                # Initialize a dictionary to hold counts for this file
+                file_results = {'filename': filename, 'data': {}}
+
+                # Process each prefix
+                for prefix in prefixes:
+                    # Filter data for current prefix
+                    prefix_data = gdf[gdf[column_name].str.startswith(prefix)]
+
+                    # Count the points for each unique value
+                    prefix_counts = prefix_data[column_name].value_counts()
+
+                    # Store results
+                    file_results['data'][prefix] = prefix_counts.to_dict()
+
+                # Append the file results to the main results dictionary
+                results[filename] = file_results
+
+            except Exception as e:
+                print(f"Failed to process {filename}: {str(e)}")
+
+    # Print results
+    for file, data in results.items():
+        print(f"File: {file}")
+        for prefix, counts in data['data'].items():
+            print(f"Counts for '{prefix}...' values:")
+            for value, count in counts.items():
+                print(f"{value}: {count}")
+            print()
+
+

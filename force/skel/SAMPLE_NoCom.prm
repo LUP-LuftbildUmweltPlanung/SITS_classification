@@ -1,0 +1,50 @@
+++PARAM_SMP_START++
+
+# INPUT/OUTPUT DIRECTORIES
+# ------------------------------------------------------------------------
+DIR_LOWER = NULL
+DIR_HIGHER = NULL
+DIR_PROVENANCE = NULL
+
+# MASKING
+# ------------------------------------------------------------------------
+DIR_MASK = NULL
+BASE_MASK = NULL
+
+# OUTPUT OPTIONS
+# ------------------------------------------------------------------------
+OUTPUT_FORMAT = GTiff
+FILE_OUTPUT_OPTIONS = NULL
+OUTPUT_EXPLODE = FALSE
+
+# PARALLEL PROCESSING
+# ------------------------------------------------------------------------
+NTHREAD_READ = 8
+NTHREAD_COMPUTE = 22
+NTHREAD_WRITE = 4
+
+# PROCESSING EXTENT AND RESOLUTION
+# ------------------------------------------------------------------------
+X_TILE_RANGE = 0 0
+Y_TILE_RANGE = 0 0
+FILE_TILE = NULL
+BLOCK_SIZE = 0
+RESOLUTION = 10
+
+# FEATURES
+# ------------------------------------------------------------------------
+INPUT_FEATURE = 2018-2018_001-365_LEVEL4_TSA_SEN2L_NDV_STM.tif 1 2 3 4 5 6
+INPUT_FEATURE = 2018-2018_001-365_LEVEL4_TSA_SEN2L_NIR_STM.tif 7 8 9 10 11 12 13
+INPUT_FEATURE = 2018-2018_001-365_LEVEL4_TSA_SEN2L_RED_STM.tif 1 2 3 4 5 6 7 8 9 10 11 12 13
+FEATURE_NODATA = -9999
+FEATURE_EXCLUDE = FALSE
+
+# SAMPLING
+# ------------------------------------------------------------------------
+FILE_POINTS = NULL
+FILE_SAMPLE = NULL
+FILE_RESPONSE = NULL
+FILE_COORDINATES = NULL
+PROJECTED = FALSE
+
+++PARAM_SMP_END++

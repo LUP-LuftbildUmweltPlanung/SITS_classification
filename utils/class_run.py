@@ -14,10 +14,10 @@ import re
 import os
 import pandas as pd
 from sklearn.model_selection import train_test_split
-from rasterio.merge import merge
 import shutil
 from tqdm import tqdm
 import datetime
+
 def sample_to_ref_onefile(force_dir,local_dir,force_skel,scripts_skel,temp_folder,mask_folder,
  proc_folder,data_folder,project_name,hold,response_lst,features_lst,response_out,features_out,bands,split_train):
     o_folder = f"{os.path.dirname(response_out)}/onefile"
@@ -75,7 +75,9 @@ def move_files(output_folder, file_list, dest_folder):
     for file in file_list:
         shutil.move(os.path.join(output_folder, file), os.path.join(dest_folder, file))
 
-def sample_to_ref_sepfiles(sampleref_param ,temp_folder, **kwargs):
+def sample_to_ref_sepfiles(sampleref_param, preprocess_param, temp_folder, **kwargs):
+
+    sampleref_param["project_name"] = preprocess_param["project_name"]
 
     bands = len(sampleref_param["band_names"])
 
@@ -90,6 +92,7 @@ def sample_to_ref_sepfiles(sampleref_param ,temp_folder, **kwargs):
         shutil.copy(f'{temp_folder}/{sampleref_param["project_name"]}/preprocess_settings.json', f'{sampleref_param["output_folder"]}/preprocess_settings.json')
     except:
         print("Couldnt Copy preprocess_settings.json")
+
     global_idx = 0
     nan_idx = 0
     # Process each file pair individually
@@ -143,9 +146,17 @@ def sample_to_ref_sepfiles(sampleref_param ,temp_folder, **kwargs):
 
                 # Step 1: Extract year, month, day from 'doa' and calculate 'doy'
                 doa_dates = [datetime.datetime.strptime(str(doa), '%Y%m%d') for doa in timesteps[:timesteps_per_band]]
-                #earliest_year = min(doa_dates, key=lambda x: x.year).year  # Step 2: Find the earliest year
+                ###earliest_year = min(doa_dates, key=lambda x: x.year).year  # Step 2: Find the earliest year
                 start_date = datetime.datetime.strptime(f'{start_year}{sampleref_param["start_doy_month"][1]}', '%Y%m-%d')
+                #start_date = datetime.datetime.strptime(f'{2015}{sampleref_param["start_doy_month"][1]}','%Y%m-%d')
                 doy = [(doa_date - start_date).days + 1 for doa_date in doa_dates]  # Step 3: Calculate 'doy'
+                # New approach: Calculate doy for each date, resetting at the start of each year
+                #doy = []
+                # for doa_date in doa_dates:
+                #     year_start_date = datetime.datetime(doa_date.year, 1,1)  # First day of the year for the current date
+                #     doy_value = (doa_date - year_start_date).days + 1
+                #     doy.append(doy_value)
+
                 pixel_df.insert(0, 'year', timesteps[:timesteps_per_band])
                 pixel_df.insert(1, 'doy', doy)  # Step 4: Insert 'doy' into DataFrame
                 pixel_df.insert(2, 'label', resp_row[0])
@@ -201,41 +212,7 @@ def sample_to_ref_sepfiles(sampleref_param ,temp_folder, **kwargs):
     temp_df = pd.DataFrame(coordinates_list)
     temp_df.to_csv(os.path.join(sampleref_param["output_folder"], f"meta.csv"), index=False)
     print(f"Process finished - deleted {nan_idx} samples cause their were no values.")
-def mosaic_rasters(input_pattern, output_filename):
-    """
-    Mosaic rasters matching the input pattern and save to output_filename.
 
-    Parameters:
-    - input_pattern: str, a wildcard pattern to match input raster files (e.g., "./tiles/*.tif").
-    - output_filename: str, the name of the output mosaic raster file.
-    """
 
-    # Find all files matching the pattern
-    src_files_to_mosaic = [rasterio.open(fp) for fp in input_pattern]
-
-    # Mosaic the rasters
-    mosaic, out_transform = merge(src_files_to_mosaic)
-    #mosaic[mosaic == 0] = -9999
-    # Get metadata from one of the input files
-    out_meta = src_files_to_mosaic[0].meta.copy()
-
-    # Update metadata with new dimensions, transform, and compression (optional)
-    out_meta.update({
-        "driver": "GTiff",
-        "height": mosaic.shape[1],
-        "width": mosaic.shape[2],
-        "transform": out_transform,
-        #"compress": "lzw"
-    })
-    if not os.path.exists(os.path.dirname(output_filename)):
-        print(f"output folder doesnt exist ... creating {os.path.dirname(output_filename)}")
-        os.makedirs(os.path.dirname(output_filename))
-    # Write the mosaic raster to disk
-    with rasterio.open(output_filename, "w", **out_meta) as dest:
-        dest.write(mosaic)
-
-    # Close the input files
-    for src in src_files_to_mosaic:
-        src.close()
 
 

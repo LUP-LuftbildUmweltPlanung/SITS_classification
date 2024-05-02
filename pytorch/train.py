@@ -34,7 +34,7 @@ def prepare_dataset(args):
     if args['seed'] is not None:
         torch.random.manual_seed(args['seed'])
 
-    ref_dataset = Dataset(root=args['data_root'], classes=args['classes_lst'], seed=args['seed'], response=args['response'], norm=args['normalizing_factor'], bands=args['order'])
+    ref_dataset = Dataset(root=args['data_root'], classes=args['classes_lst'], seed=args['seed'], response=args['response'], norm=args['norm_factor_features'], bands=args['order'], norm_response = args['norm_factor_response'])
 
     return ref_dataset
 
@@ -81,6 +81,7 @@ def train(trial,args_train,ref_dataset):
     valid_size = len(selected_dataset) - train_size
     train_dataset, valid_dataset = torch.utils.data.random_split(selected_dataset, [train_size, valid_size])
 
+
     traindataloader = torch.utils.data.DataLoader(dataset=train_dataset, sampler=RandomSampler(train_dataset),
                                                   batch_size=args_train['batchsize'], num_workers=args_train['workers'],
                                                   collate_fn=collate_fn)
@@ -94,7 +95,7 @@ def train(trial,args_train,ref_dataset):
     print(f"Validation Sample Size: {len(validdataloader.dataset)}")
 
     if args_train['model'] in ["transformer"]:
-        args_train['seqlength'] = 366 * args_train['years']
+        args_train['seqlength'] = 366 * args_train['years'] #2562#
     elif args_train['model'] in ["rnn", "msresnet","tempcnn"]:
         args_train['seqlength'] = traindataloader.dataset.dataset.dataset.sequencelength
     # OPTUNA: this is the build_model_custom(trial)
@@ -156,7 +157,7 @@ def getModel(args):
 
     if args['model'] == "rnn":
         model = RNN(input_dim=args['input_dims'], nclasses=args['nclasses'], hidden_dims=args["hidden_dims"],
-                              num_rnn_layers=args["n_layers"], dropout=args["dropout"], bidirectional=True, response = args['response'])
+                              num_rnn_layers=args["num_layers"], dropout=args["dropout"], bidirectional=True, response = args['response'])
     if args['model'] == "msresnet":
         model = MSResNet(input_channel=args['input_dims'], layers=[1, 1, 1, 1], num_classes=args['nclasses'], hidden_dims=args["hidden_dims"], response = args['response'])
 
@@ -180,8 +181,10 @@ def getModel(args):
     return model
 
 
-def train_init(args_train):
-
+def train_init(args_train, preprocess_params, path_params):
+    args_train["workers"] = 10  # number of CPU workers to load the next batch
+    args_train["data_root"] = f'{path_params["proc_folder"]}/_SITSrefdata/{preprocess_params["project_name"]}/sepfiles/train/' # folder with CSV or cached NPY folder
+    args_train["store"] = f'{path_params["proc_folder"]}/_SITSModels/{preprocess_params["project_name"]}/'  # Store Model Data Path
     # create hw_monitor output dir if it doesn't exist
     Path(args_train['store'] + '/' + args_train['model'] + '/hw_monitor').mkdir(parents=True, exist_ok=True)
     drive_name = ["sdb1"]

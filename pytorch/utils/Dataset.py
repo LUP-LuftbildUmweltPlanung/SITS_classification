@@ -11,7 +11,7 @@ import pickle
 
 class Dataset(torch.utils.data.Dataset):
 
-    def __init__(self, root, classes, cache=True, seed=0, response = None, norm = None, bands = None):
+    def __init__(self, root, classes, cache=True, seed=0, response = None, norm = None, bands = None, norm_response = None):
 
         self.seed = seed
 
@@ -20,6 +20,7 @@ class Dataset(torch.utils.data.Dataset):
         np.random.seed(seed)
         torch.random.manual_seed(seed)
         self.norm = norm
+        self.norm_r = norm_response
         self.bands = bands
         self.root = root
         self.response = response
@@ -145,7 +146,11 @@ class Dataset(torch.utils.data.Dataset):
 
         data = genfromtxt(csv_file, delimiter=',', skip_header=1,filling_values=0) ###was 9999 before!!
         X = data[:, 3:] * self.norm
-        nutzcodes = data[:, 2]
+        if self.norm_r == None:
+            nutzcodes = data[:, 2]
+        else:
+            nutzcodes = data[:, 2] * self.norm_r
+
         doy = data[:, 1]
 
         # # Read CSV file using pandas

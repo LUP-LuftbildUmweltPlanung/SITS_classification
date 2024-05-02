@@ -1,0 +1,153 @@
+++PARAM_TSA_START++
+
+# INPUT/OUTPUT DIRECTORIES
+# ------------------------------------------------------------------------
+DIR_LOWER = NULL
+DIR_HIGHER = NULL
+DIR_PROVENANCE = NULL
+
+# MASKING
+# ------------------------------------------------------------------------
+DIR_MASK = NULL
+BASE_MASK = NULL
+
+# OUTPUT OPTIONS
+# ------------------------------------------------------------------------
+OUTPUT_FORMAT = GTiff
+FILE_OUTPUT_OPTIONS = NULL
+OUTPUT_EXPLODE = FALSE
+
+# PARALLEL PROCESSING
+# ------------------------------------------------------------------------
+NTHREAD_READ = 8
+NTHREAD_COMPUTE = 22
+NTHREAD_WRITE = 4
+
+# PROCESSING EXTENT AND RESOLUTION
+# ------------------------------------------------------------------------
+X_TILE_RANGE = 0 0
+Y_TILE_RANGE = 0 0
+FILE_TILE = NULL
+BLOCK_SIZE = 0
+RESOLUTION = 10
+REDUCE_PSF = FALSE
+USE_L2_IMPROPHE = FALSE
+
+# SENSOR ALLOW-LIST
+# ------------------------------------------------------------------------
+SENSORS = LND08 LND09 SEN2A SEN2B
+SPECTRAL_ADJUST = FALSE
+
+# QAI SCREENING
+# ------------------------------------------------------------------------
+SCREEN_QAI = NODATA CLOUD_OPAQUE CLOUD_BUFFER CLOUD_CIRRUS CLOUD_SHADOW SNOW SUBZERO SATURATION
+ABOVE_NOISE = 3
+BELOW_NOISE = 1
+
+# PROCESSING TIMEFRAME
+# ------------------------------------------------------------------------
+DATE_RANGE = 2010-01-01 2019-12-31
+DOY_RANGE = 1 365
+
+# SPECTRAL INDEX
+# ------------------------------------------------------------------------
+INDEX = NDVI EVI NBR
+STANDARDIZE_TSS = NONE
+OUTPUT_TSS = FALSE
+
+# SPECTRAL MIXTURE ANALYSIS
+# ------------------------------------------------------------------------
+# This block only applies if INDEX includes SMA
+# ------------------------------------------------------------------------
+FILE_ENDMEM  = NULL
+SMA_SUM_TO_ONE = TRUE
+SMA_NON_NEG = TRUE
+SMA_SHD_NORM = TRUE
+SMA_ENDMEMBER = 1
+OUTPUT_RMS = FALSE
+
+# INTERPOLATION PARAMETERS
+# ------------------------------------------------------------------------
+INTERPOLATE = RBF
+MOVING_MAX = 16
+RBF_SIGMA = 8 16 32
+RBF_CUTOFF = 0.95
+HARMONIC_MODES = 3
+HARMONIC_FIT_RANGE = 2015-01-01 2017-12-31
+OUTPUT_NRT = FALSE
+INT_DAY = 16
+STANDARDIZE_TSI = NONE
+OUTPUT_TSI = FALSE
+
+# PYTHON UDF PARAMETERS
+# ------------------------------------------------------------------------
+FILE_PYTHON = NULL
+PYTHON_TYPE = PIXEL
+OUTPUT_PYP = FALSE
+
+# SPECTRAL TEMPORAL METRICS
+# ------------------------------------------------------------------------
+OUTPUT_STM = FALSE
+STM = Q25 Q50 Q75 AVG STD
+
+# FOLDING PARAMETERS
+# ------------------------------------------------------------------------
+FOLD_TYPE = AVG
+STANDARDIZE_FOLD = NONE
+OUTPUT_FBY = FALSE
+OUTPUT_FBQ = FALSE
+OUTPUT_FBM = FALSE
+OUTPUT_FBW = FALSE
+OUTPUT_FBD = FALSE
+OUTPUT_TRY = FALSE
+OUTPUT_TRQ = FALSE
+OUTPUT_TRM = FALSE
+OUTPUT_TRW = FALSE
+OUTPUT_TRD = FALSE
+OUTPUT_CAY = FALSE
+OUTPUT_CAQ = FALSE
+OUTPUT_CAM = FALSE
+OUTPUT_CAW = FALSE
+OUTPUT_CAD = FALSE
+
+# LAND SURFACE PHENOLOGY PARAMETERS - SPLITS-BASED
+# ------------------------------------------------------------------------
+# The Land Surface Phenology (LSP) options are only available if FORCE was
+# compiled with SPLITS (see installation section in the FORCE user guide).
+# ------------------------------------------------------------------------
+LSP_DOY_PREV_YEAR = 273
+LSP_DOY_NEXT_YEAR = 91
+LSP_HEMISPHERE = NORTH
+LSP_N_SEGMENT = 4
+LSP_AMP_THRESHOLD = 0.2
+LSP_MIN_VALUE = 500
+LSP_MIN_AMPLITUDE = 500
+LSP = VSS VPS VES VSA RMR IGS
+STANDARDIZE_LSP = NONE
+OUTPUT_SPL = FALSE
+OUTPUT_LSP = FALSE
+OUTPUT_TRP = FALSE
+OUTPUT_CAP = FALSE
+
+# LAND SURFACE PHENOLOGY PARAMETERS - POLAR-BASED
+# ------------------------------------------------------------------------
+# Please note that these only work well with non-negative indices.--------
+# ------------------------------------------------------------------------
+POL_START_THRESHOLD = 0.2
+POL_MID_THRESHOLD = 0.5
+POL_END_THRESHOLD = 0.8
+POL_ADAPTIVE = TRUE
+POL = VSS VPS VES VSA RMR IGS
+STANDARDIZE_POL = NONE
+OUTPUT_PCT = FALSE
+OUTPUT_POL = FALSE
+OUTPUT_TRO = FALSE
+OUTPUT_CAO = FALSE
+
+# TREND PARAMETERS
+# ------------------------------------------------------------------------
+TREND_TAIL = TWO
+TREND_CONF = 0.95
+CHANGE_PENALTY = FALSE
+
+++PARAM_TSA_END++

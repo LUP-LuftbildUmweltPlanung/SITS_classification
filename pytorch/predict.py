@@ -6,7 +6,6 @@ import numpy as np
 
 from pathlib import Path
 
-from utils.class_run import mosaic_rasters
 from pytorch.train import getModel
 from pytorch.utils.hw_monitor import HWMonitor, disk_info, squeeze_hw_info
 from tqdm import tqdm
@@ -16,6 +15,45 @@ import datetime
 import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Point
+from rasterio.merge import merge
+
+def mosaic_rasters(input_pattern, output_filename):
+    """
+    Mosaic rasters matching the input pattern and save to output_filename.
+
+    Parameters:
+    - input_pattern: str, a wildcard pattern to match input raster files (e.g., "./tiles/*.tif").
+    - output_filename: str, the name of the output mosaic raster file.
+    """
+
+    # Find all files matching the pattern
+    src_files_to_mosaic = [rasterio.open(fp) for fp in input_pattern]
+
+    # Mosaic the rasters
+    mosaic, out_transform = merge(src_files_to_mosaic)
+    #mosaic[mosaic == 0] = -9999
+    # Get metadata from one of the input files
+    out_meta = src_files_to_mosaic[0].meta.copy()
+
+    # Update metadata with new dimensions, transform, and compression (optional)
+    out_meta.update({
+        "driver": "GTiff",
+        "height": mosaic.shape[1],
+        "width": mosaic.shape[2],
+        "transform": out_transform,
+        #"compress": "lzw"
+    })
+    if not os.path.exists(os.path.dirname(output_filename)):
+        print(f"output folder doesnt exist ... creating {os.path.dirname(output_filename)}")
+        os.makedirs(os.path.dirname(output_filename))
+    # Write the mosaic raster to disk
+    with rasterio.open(output_filename, "w", **out_meta) as dest:
+        dest.write(mosaic)
+
+    # Close the input files
+    for src in src_files_to_mosaic:
+        src.close()
+
 
 def load_model(model_path,args):
 
@@ -23,7 +61,7 @@ def load_model(model_path,args):
     saved_state = torch.load(model_path)
     model_state_dict = saved_state["model_state"]
     args['nclasses'] = saved_state["nclasses"]
-    args['seqlength'] = saved_state["sequencelength"]
+    args['seqlength'] = 366*int(args["time_range"][0])
     args['input_dims'] = saved_state["ndims"]
     #print(f"Sequence Length: {args['seqlength']}")
     print(f"Input Dims: {args['input_dims']}")
@@ -61,9 +99,16 @@ def read_tif_files(folder_path, order, year, month, day):
         timestamp = src.descriptions  # Assuming you need the first description for DOY
 
     doa_dates = [datetime.datetime.strptime(str(doa[:8]), '%Y%m%d') for doa in timestamp]
+    # New DOY calculation that resets at the beginning of each year
+    # doy = []
+    # for doa_date in doa_dates:
+    #     year_start_date = datetime.datetime(doa_date.year, 1, 1)  # First day of the year for the current date
+    #     doy_value = (doa_date - year_start_date).days + 1
+    #     #print(doy_value)
+    #     doy.append(doy_value)
+
     latest_year = max(doa_dates, key=lambda x: x.year).year
     start_date = datetime.datetime(latest_year-year, month, day)
-
     doy = [(doa_date - start_date).days + 1 for doa_date in doa_dates]
     return bands_data,doy
 
@@ -72,7 +117,7 @@ def predict(model, tiles, args_predict):
     print(f"Preprocessing the Data for Prediction ...")
     # Read TIFF files
     order = args_predict["order"]
-    normalizing_factor = args_predict["normalizing_factor"]
+    normalizing_factor = args_predict["norm_factor_features"]
     chunksize = args_predict["chunksize"]
     year = int(args_predict['time_range'][0])
     month = int(args_predict['time_range'][1].split('-')[0])
@@ -124,24 +169,31 @@ def predict(model, tiles, args_predict):
             current_batch_size = batch.shape[0]  # Actual batch size may be less than chunksize for the last chunk
             # expanding it
             doy = np.tile(doy, (current_batch_size, 1))
+            if np.all(batch == 0):
+                # Create a tensor of zeros with the shape [current_batch_size, 1]
+                # since you mentioned the desired shape is [10000, 1],
+                # here we adjust it dynamically based on the current batch size
+                batch_predictions = torch.full((current_batch_size, 1), -9999, dtype=torch.float32)
+            else:
+                # Create a boolean mask for samples where all values across all spectral bands are 0
+                #all_zero_spectral = np.all(batch == 0, axis=1)
+                # Apply the mask: Set doy values to 0 where the condition is true
+                #doy[all_zero_spectral] = 0
+                batch = torch.tensor(batch, dtype=torch.float32, device=device)
+                batch_doy = torch.tensor(doy, dtype=torch.long, device=device)
+                # Predict
+                #print(batch.shape)
+                #print(batch_doy.shape)
+                #import time
+                #time.sleep(10000)
+                batch_predictions = model.forward(batch, batch_doy)[0]
+                if args_predict["norm_factor_response"] != None:
+                    batch_predictions = batch_predictions * args_predict["norm_factor_response"]
 
-            # Create a boolean mask for samples where all values across all spectral bands are 0
-            #all_zero_spectral = np.all(batch == 0, axis=1)
-            # Apply the mask: Set doy values to 0 where the condition is true
-            #doy[all_zero_spectral] = 0
-            batch = torch.tensor(batch, dtype=torch.float32, device=device)
-            batch_doy = torch.tensor(doy, dtype=torch.long, device=device)
-            # Predict
-            #print(batch.shape)
-            #print(batch_doy.shape)
-            #import time
-            #time.sleep(10000)
-            batch_predictions = model.forward(batch, batch_doy)[0]
-
-            # Handle classification or regression
-            if args_predict["response"] == "classification" and not args_predict["probability"]:
-                batch_predictions = torch.argmax(batch_predictions, dim=1)
-
+                # Handle classification or regression
+                if args_predict["response"] == "classification" and not args_predict["probability"]:
+                    batch_predictions = torch.argmax(batch_predictions, dim=1)
+            #print(batch_predictions.shape)
             predictions.append(batch_predictions.cpu())  # Move predictions back to CPU if needed
 
     return torch.cat(predictions, dim=0)
@@ -283,7 +335,7 @@ def predict_csv(args_predict):
         doy = pixel_df['doy'].values
 
         # Preprocess data for the model
-        data = data * args_predict['normalizing_factor']  # Normalize data
+        data = data * args_predict['norm_factor_features']  # Normalize data
         data = torch.tensor(data, dtype=torch.float32).unsqueeze(0)  # Add batch dimension
         data = data.permute(0, 2, 1)  # This swaps the second and third dimensions
 
@@ -297,6 +349,8 @@ def predict_csv(args_predict):
             if args_predict["response"] == "classification":
                 prediction = torch.argmax(prediction, dim=1)
             prediction = prediction.squeeze().item()  # Assuming single prediction
+            if args_predict["norm_factor_response"] != None:
+                prediction = prediction * args_predict["norm_factor_response"]
 
             # Create a DataFrame for the new row you want to add
             new_row_df = pd.DataFrame([{
@@ -328,7 +382,6 @@ def predict_init(args_predict, proc_folder, temp_folder, **kwargs):
         if isinstance(args_predict['aois'], list):
             for basen in args_predict['aois']:
                 basename = os.path.basename(basen)
-
                 args_predict['folder_path'] = f"{temp_folder}/{args_predict['project_name']}/FORCE/{basename}/tiles_tss/X*"
 
                 predict_raster(args_predict)

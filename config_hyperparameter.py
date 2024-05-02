@@ -14,13 +14,13 @@ def hyperparameter_config(model):
     elif model == "transformer":
         return {
             "model": "transformer",
-            "batchsize": 512,  # batch size
+            "batchsize": 256,  # batch size
             "hidden_dims": 128,
-            "n_heads": 4,
-            "n_layers": 3,
-            "learning_rate": 0.0025,
+            "n_heads": 5,
+            "n_layers": 4,
+            "learning_rate": 0.0009913,
             "dropout": 0,
-            "weight_decay": 0.0002,
+            "weight_decay": 0.000306,
             "warmup": 1000,
             'partition': 100,  # partition of whole reference data
         }
@@ -31,7 +31,7 @@ def hyperparameter_config(model):
             "num_layers": 4,
             "hidden_dims": 32,
             "learning_rate": 0.010489,
-            "dropout": 0.710883,
+            "dropout": 0,
             "weight_decay": 0.000371,
             "bidirectional": True,
             'partition': 100,  # partition of whole reference data

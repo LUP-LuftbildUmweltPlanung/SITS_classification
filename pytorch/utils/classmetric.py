@@ -42,6 +42,7 @@ class ClassMetric(object):
         o = o.flatten()
         # confusion matrix
         n, _, _ = np.histogram2d(t, o, bins=self.num_classes, range=self.range)
+
         self.hist += n
 
     def add(self, stats):

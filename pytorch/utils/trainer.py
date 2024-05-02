@@ -50,7 +50,7 @@ class Trainer():
         self.model = model
         self.checkpoint_every_n_epochs = checkpoint_every_n_epochs
         self.early_stopping_smooth_period = 5
-        self.early_stopping_patience = 6
+        self.early_stopping_patience = 4
         self.not_improved_epochs=0
         self.trial = trial
         #self.early_stopping_metric="kappa"
@@ -235,6 +235,7 @@ class Trainer():
                 stats = metric.add(stats)
                 # Calculate the MSE and R2 for this iteration
                 rmse_r2_stats = metric.update_mat(targets.detach().cpu().numpy(),logprobabilities.squeeze(1).detach().cpu().numpy())
+
                 # Add MSE and R2 to the `stats` dictionary
                 stats["r2"] = rmse_r2_stats["r2"]
                 stats["rmse"] = rmse_r2_stats["rmse"]
@@ -275,7 +276,7 @@ class Trainer():
                 if self.response == "classification":
                     loss = F.nll_loss(logprobabilities, targets)
                 else:
-                    loss = F.mse_loss(logprobabilities.squeeze(1), targets)
+                    loss = F.mse_loss(logprobabilities.squeeze(1),targets)
 
                 stats = dict(
                     loss=loss,
@@ -286,7 +287,7 @@ class Trainer():
                     prediction = self.model.predict(logprobabilities)
                     ## enter numpy world
                     prediction_np = prediction.detach().cpu().numpy()
-                    label = targets.mode.detach().cpu().numpy()
+                    label = targets.detach().cpu().numpy()
                     stats = metric.add(stats)
                     accuracy_metrics = metric.update_confmat(label, prediction_np)
                     stats["accuracy"] = accuracy_metrics["overall_accuracy"]
