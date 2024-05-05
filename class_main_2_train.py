@@ -13,7 +13,7 @@ from config_path import path_params
 
 #FORCE
 preprocess_params = {
-    "project_name" : "test_workshop", #Project Name that will be the name of output folder in temp & result subfolder
+    "project_name" : "envilink_vv_3years", #Project Name that will be the name of output folder in temp & result subfolder
     "time_range" : ["3","10-01"], # [time_range in years, start MM-DD for doy] !!
     "aois" : glob.glob(f"/uge_mount/FORCE/new_struc/data/_SamplingPoints/test_workshop/potsdam_2023_points_extract.shp"), ## reference points shape as single file or file list ## should have YYYY in name
     "column_name": 'vgh', #column name for response variable in points
@@ -52,7 +52,7 @@ sampleref_param = {
     }
 
 args_train = {
-    'epochs': 10,  # number of training epochs
+    'epochs': 80,  # number of training epochs
     'valid_every_n_epochs': 2,  # skip some valid epochs for faster overall training
     'checkpoint_every_n_epochs': 2,  # save checkpoints during training
     'ref_split': 0.8, # split ratio for training, other part is validation
@@ -61,13 +61,15 @@ args_train = {
     ###########################################
     ########Advanced Parameters################
     ###########################################
+    'augmentation': 0.5, # Percentage x*100 % for augmenting Training Data with Cubic Spline Time Warping or annual Gaussian Scaling
+    'augmentation_plot': None, #Plotting for Augmentations; either None or BandNumber [None, 1, 2, 3, 4, 5, ...]
     'classes_lst': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], #classification classes
-    'tune': True,  # Hyperparameter Tune?
+    'tune': False,  # Hyperparameter Tune?
     'study_name': "test_workshop", # Name for Hyperparameter Trial
     'seed': 42,  # seed for batching and weight initialization
     'years': int(preprocess_params["time_range"][0]),  ###PLACEHOLDER #time series years for doy max sequence length
     'norm_factor_features': 1e-4,
-    'norm_factor_response': None,  # 1e-3
+    'norm_factor_response': 1e-3,#None,
     'order': sampleref_param["band_names"],
 }
 

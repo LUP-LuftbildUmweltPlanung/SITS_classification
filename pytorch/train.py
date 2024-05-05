@@ -22,6 +22,7 @@ import shutil
 from config_hyperparameter import hyperparameter_config, hyperparameter_tune
 import optuna
 from torch.nn.utils.rnn import pad_sequence
+from pytorch.utils.augmentation import time_warp, plot, apply_scaling, apply_augmentation
 def prepare_dataset(args):
     assert args['response'] in ["regression_sigmoid", "regression_relu", "classification"]
 
@@ -38,11 +39,19 @@ def prepare_dataset(args):
 
     return ref_dataset
 
-
-def collate_fn(batch):
+def collate_fn(batch, p, plotting):
     X_batch, y_batch, doy_batch = zip(*batch)
-    X_padded = pad_sequence(X_batch, batch_first=True, padding_value=0)
-    doy_padded = pad_sequence(doy_batch, batch_first=True, padding_value=0)
+
+    # Apply augmentation with probability p to each item in the batch
+    X_batch_augmented = []
+    doy_batch_augmented = []
+    for X, doy in zip(X_batch, doy_batch):
+        X_aug, doy_aug = apply_augmentation(X, doy, p, plotting)
+        X_batch_augmented.append(X_aug)
+        doy_batch_augmented.append(doy_aug)
+
+    X_padded = pad_sequence(X_batch_augmented, batch_first=True, padding_value=0)
+    doy_padded = pad_sequence(doy_batch_augmented, batch_first=True, padding_value=0)
     y_padded = torch.stack(y_batch)
 
     return X_padded, y_padded, doy_padded
@@ -81,14 +90,16 @@ def train(trial,args_train,ref_dataset):
     valid_size = len(selected_dataset) - train_size
     train_dataset, valid_dataset = torch.utils.data.random_split(selected_dataset, [train_size, valid_size])
 
+    p = args_train['augmentation']
+    plotting = args_train['augmentation_plot']
 
     traindataloader = torch.utils.data.DataLoader(dataset=train_dataset, sampler=RandomSampler(train_dataset),
                                                   batch_size=args_train['batchsize'], num_workers=args_train['workers'],
-                                                  collate_fn=collate_fn)
+                                                  collate_fn=lambda batch: collate_fn(batch, p, plotting))
 
     validdataloader = torch.utils.data.DataLoader(dataset=valid_dataset, sampler=SequentialSampler(valid_dataset),
                                                   batch_size=args_train['batchsize'], num_workers=args_train['workers'],
-                                                  collate_fn=collate_fn)
+                                                  collate_fn=lambda batch: collate_fn(batch, p=0, plotting=None))
 
 
     print(f"Training Sample Size: {len(traindataloader.dataset)}")
@@ -106,7 +117,7 @@ def train(trial,args_train,ref_dataset):
     print(f"Maximum DOY Sequence Length: {args_train['seqlength']}")
     print(f"Input Dims: {args_train['input_dims']}")
     print(f"Prediction Classes: {len(args_train['classes_lst'])}")
-
+    print(f"Data Augmentation: {p * 100} % Training Data will be augmented (either Scaling or Time Warping 50/50)")
     model = getModel(args_train)
 
     store = os.path.join(args_train['store'],args_train['model'])
