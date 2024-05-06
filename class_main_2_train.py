@@ -13,9 +13,9 @@ from config_path import path_params
 
 #FORCE
 preprocess_params = {
-    "project_name" : "envilink_vv_3years", #Project Name that will be the name of output folder in temp & result subfolder
+    "project_name" : "test_workshop", #Project Name that will be the name of output folder in temp & result subfolder
     "time_range" : ["3","10-01"], # [time_range in years, start MM-DD for doy] !!
-    "aois" : glob.glob(f"/uge_mount/FORCE/new_struc/data/_SamplingPoints/test_workshop/potsdam_2023_points_extract.shp"), ## reference points shape as single file or file list ## should have YYYY in name
+    "aois" : glob.glob(f"/nne_mount/sits_framework/process/data/_SamplingPoints/test_workshop/potsdam_2023_points_extract.shp"), ## reference points shape as single file or file list ## should have YYYY in name
     "column_name": 'vgh', #column name for response variable in points
     "Interpolation" : False, ## Classification based on not interpolated Data just possible with Transformer
     "INT_DAY" : 10, ## interpolation time steps
@@ -52,7 +52,7 @@ sampleref_param = {
     }
 
 args_train = {
-    'epochs': 80,  # number of training epochs
+    'epochs': 10,  # number of training epochs
     'valid_every_n_epochs': 2,  # skip some valid epochs for faster overall training
     'checkpoint_every_n_epochs': 2,  # save checkpoints during training
     'ref_split': 0.8, # split ratio for training, other part is validation
@@ -69,7 +69,7 @@ args_train = {
     'seed': 42,  # seed for batching and weight initialization
     'years': int(preprocess_params["time_range"][0]),  ###PLACEHOLDER #time series years for doy max sequence length
     'norm_factor_features': 1e-4,
-    'norm_factor_response': 1e-3,#None,
+    'norm_factor_response': None,#1e-3
     'order': sampleref_param["band_names"],
 }
 
@@ -79,25 +79,3 @@ if __name__ == '__main__':
     #sample_to_ref_sepfiles(sampleref_param, preprocess_params, **path_params) # splits for single domain then goes to next
     train_init(args_train, preprocess_params, path_params)
 
-
-    # for year in [0.9, 2018, 2019, 2020, 2021, 2022]:
-    #     if year == 0.9:
-    #         year = "09"
-    #     preprocess_params["project_name"] = "phd_vgh_tss_3years_EQUAL_noOutlier"
-    #     #preprocess_params["project_name"] = f'{preprocess_params["project_name"]}_test{year}'
-    #     #force_class(preprocess_params, **path_params)
-    #     sampleref_param["project_name"] = preprocess_params["project_name"]
-    #     sampleref_param["output_folder"] = f'{path_params["proc_folder"]}/_SITSrefdata/{preprocess_params["project_name"]}_test{year}'
-    #
-    #     sampleref_param["split_train"] = year
-    #     #sample_to_ref_sepfiles(sampleref_param, **path_params) # splits for single domain then goes to next
-    #     try:
-    #         del args_train['nclasses']
-    #         del args_train['input_dims']
-    #         del args_train['seqlength']
-    #     except:
-    #         print("probably first run ... no entries to delete")
-    #     args_train["data_root"] = f'{path_params["proc_folder"]}/_SITSrefdata/{preprocess_params["project_name"]}_test{year}/sepfiles/train/'
-    #     args_train["store"] = f'{path_params["proc_folder"]}/_SITSModels/{preprocess_params["project_name"]}_test{year}/'
-    #
-    #     train_init(args_train)

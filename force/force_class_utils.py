@@ -123,6 +123,7 @@ def force_class(preprocess_params, force_dir, local_dir, force_skel, scripts_ske
             subprocess.run(['xterm', '-e', cmd])
 
         subprocess.run(['sudo','chmod','-R','777',f"{temp_folder}/{project_name}/FORCE/{basename}"])
+
         ### mask
         os.makedirs(f"{mask_folder}/{project_name}/{basename}", exist_ok=True)
 
