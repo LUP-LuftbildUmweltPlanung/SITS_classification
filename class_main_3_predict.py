@@ -14,15 +14,9 @@ from config_path import path_params
 from force.force_class_utils import force_class
 
 args_predict = {
-<<<<<<< HEAD
     'project_name': "envilink_vv_3years_2020",
     'model_path': '/uge_mount/FORCE/new_struc/process/result/_SITSModels/envilink_vv_3years_2020/transformer/model_e22.pth', # Path to Model
     'aois': glob.glob(f"/uge_mount/FORCE/new_struc/data/test_workshop/potsdam_2023_utm33p.shp"), # aois can be path or list. Path for Force Tile folder or list // process structure and shapefiles must be correct
-=======
-    'project_name': "predict_test_workshop",
-    'model_path': '/nne_mount/sits_framework/process/results/_SITSModels/test_workshop/transformer/model_e10.pth', # Path to Model
-    'aois': glob.glob(f"/nne_mount/sits_framework/process/data/workshop_aoi/potsdam_2023_laea.shp"), # aois can be path or list. Path for Force Tile folder or list // process structure and shapefiles must be correct
->>>>>>> 1007a94694683ab48a5de67708a9690eaa6dabf1
     #'aois': None,
     'chunksize': 10000,
     'reference_folder' : '/uge_mount/FORCE/new_struc/process/result/_SITSrefdata/envilink_vv_3years_2020/',
