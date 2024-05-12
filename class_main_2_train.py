@@ -15,13 +15,10 @@ from config_path import path_params
 preprocess_params = {
     "project_name" : "test_workshop", #Project Name that will be the name of output folder in temp & result subfolder
     "time_range" : ["3","10-01"], # [time_range in years, start MM-DD for doy] !!
-<<<<<<< HEAD
     "aois" : glob.glob(f"/uge_mount/FORCE/new_struc/data/_SamplingPoints/uge_vv_30m_equalized/leipzig_2018_extract.shp"), ## reference points shape as single file or file list ## should have YYYY in name
     "column_name": 'vv', #column name for response variable in points
-=======
     "aois" : glob.glob(f"/nne_mount/sits_framework/process/data/_SamplingPoints/test_workshop/potsdam_2023_points_extract.shp"), ## reference points shape as single file or file list ## should have YYYY in name
     "column_name": 'vgh', #column name for response variable in points
->>>>>>> 1007a94694683ab48a5de67708a9690eaa6dabf1
     "Interpolation" : False, ## Classification based on not interpolated Data just possible with Transformer
     "INT_DAY" : 10, ## interpolation time steps
     ###########################################
@@ -84,8 +81,6 @@ if __name__ == '__main__':
     sample_to_ref_sepfiles(sampleref_param, preprocess_params, **path_params) # splits for single domain then goes to next
     #train_init(args_train, preprocess_params, path_params)
 
-<<<<<<< HEAD
-
 
     #preprocess_params["project_name"] = "envilink_vv_3years_2020"
     #train_init(args_train, preprocess_params, path_params)
@@ -99,5 +94,3 @@ if __name__ == '__main__':
     #args_train['norm_factor_response'] = None
     #train_init(args_train, preprocess_params, path_params)
 
-=======
->>>>>>> 1007a94694683ab48a5de67708a9690eaa6dabf1
