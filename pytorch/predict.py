@@ -66,7 +66,6 @@ def load_model(model_path,args):
     #print(f"Sequence Length: {args['seqlength']}")
     print(f"Input Dims: {args['input_dims']}")
     print(f"Prediction Classes: {args['nclasses']}")
-
     model = getModel(args)
 
     model.load_state_dict(model_state_dict)
@@ -188,7 +187,7 @@ def predict(model, tiles, args_predict):
                 #time.sleep(10000)
                 batch_predictions = model.forward(batch, batch_doy)[0]
                 if args_predict["norm_factor_response"] != None:
-                    batch_predictions = batch_predictions * args_predict["norm_factor_response"]
+                    batch_predictions = batch_predictions / args_predict["norm_factor_response"]
 
                 # Handle classification or regression
                 if args_predict["response"] == "classification" and not args_predict["probability"]:
@@ -350,7 +349,7 @@ def predict_csv(args_predict):
                 prediction = torch.argmax(prediction, dim=1)
             prediction = prediction.squeeze().item()  # Assuming single prediction
             if args_predict["norm_factor_response"] != None:
-                prediction = prediction * args_predict["norm_factor_response"]
+                prediction = prediction / args_predict["norm_factor_response"]
 
             # Create a DataFrame for the new row you want to add
             new_row_df = pd.DataFrame([{

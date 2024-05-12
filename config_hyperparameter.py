@@ -18,7 +18,7 @@ def hyperparameter_config(model):
             "hidden_dims": 128,
             "n_heads": 5,
             "n_layers": 4,
-            "learning_rate": 0.0009913,
+            "learning_rate": 0.0010913,
             "dropout": 0,
             "weight_decay": 0.000306,
             "warmup": 1000,

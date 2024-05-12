@@ -15,8 +15,8 @@ from config_path import path_params
 preprocess_params = {
     "project_name" : "envilink_vv_3years", #Project Name that will be the name of output folder in temp & result subfolder
     "time_range" : ["3","10-01"], # [time_range in years, start MM-DD for doy] !!
-    "aois" : glob.glob(f"/uge_mount/FORCE/new_struc/data/_SamplingPoints/test_workshop/potsdam_2023_points_extract.shp"), ## reference points shape as single file or file list ## should have YYYY in name
-    "column_name": 'vgh', #column name for response variable in points
+    "aois" : glob.glob(f"/uge_mount/FORCE/new_struc/data/_SamplingPoints/uge_vv_30m_equalized/leipzig_2018_extract.shp"), ## reference points shape as single file or file list ## should have YYYY in name
+    "column_name": 'vv', #column name for response variable in points
     "Interpolation" : False, ## Classification based on not interpolated Data just possible with Transformer
     "INT_DAY" : 10, ## interpolation time steps
     ###########################################
@@ -61,7 +61,7 @@ args_train = {
     ###########################################
     ########Advanced Parameters################
     ###########################################
-    'augmentation': 0.5, # Percentage x*100 % for augmenting Training Data with Cubic Spline Time Warping or annual Gaussian Scaling
+    'augmentation': 1, # Percentage x*100 % for augmenting Training Data with DOY Day Shifting / annual Gaussian Scaling / Zero Out
     'augmentation_plot': None, #Plotting for Augmentations; either None or BandNumber [None, 1, 2, 3, 4, 5, ...]
     'classes_lst': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], #classification classes
     'tune': False,  # Hyperparameter Tune?
@@ -76,28 +76,20 @@ args_train = {
 if __name__ == '__main__':
 
     #force_class(preprocess_params, **path_params)
-    #sample_to_ref_sepfiles(sampleref_param, preprocess_params, **path_params) # splits for single domain then goes to next
-    train_init(args_train, preprocess_params, path_params)
+    sample_to_ref_sepfiles(sampleref_param, preprocess_params, **path_params) # splits for single domain then goes to next
+    #train_init(args_train, preprocess_params, path_params)
 
 
-    # for year in [0.9, 2018, 2019, 2020, 2021, 2022]:
-    #     if year == 0.9:
-    #         year = "09"
-    #     preprocess_params["project_name"] = "phd_vgh_tss_3years_EQUAL_noOutlier"
-    #     #preprocess_params["project_name"] = f'{preprocess_params["project_name"]}_test{year}'
-    #     #force_class(preprocess_params, **path_params)
-    #     sampleref_param["project_name"] = preprocess_params["project_name"]
-    #     sampleref_param["output_folder"] = f'{path_params["proc_folder"]}/_SITSrefdata/{preprocess_params["project_name"]}_test{year}'
-    #
-    #     sampleref_param["split_train"] = year
-    #     #sample_to_ref_sepfiles(sampleref_param, **path_params) # splits for single domain then goes to next
-    #     try:
-    #         del args_train['nclasses']
-    #         del args_train['input_dims']
-    #         del args_train['seqlength']
-    #     except:
-    #         print("probably first run ... no entries to delete")
-    #     args_train["data_root"] = f'{path_params["proc_folder"]}/_SITSrefdata/{preprocess_params["project_name"]}_test{year}/sepfiles/train/'
-    #     args_train["store"] = f'{path_params["proc_folder"]}/_SITSModels/{preprocess_params["project_name"]}_test{year}/'
-    #
-    #     train_init(args_train)
+
+    #preprocess_params["project_name"] = "envilink_vv_3years_2020"
+    #train_init(args_train, preprocess_params, path_params)
+    #preprocess_params["project_name"] = "envilink_vv_3years_09"
+    #train_init(args_train, preprocess_params, path_params)
+    #preprocess_params["project_name"] = "envilink_tcd_3years"
+    #sampleref_param["output_folder"] = f'{path_params["proc_folder"]}/_SITSrefdata/{preprocess_params["project_name"]}'
+    #sampleref_param["split_train"] = 0.9
+    #sample_to_ref_sepfiles(sampleref_param, preprocess_params, **path_params)
+    #args_train['response'] = "regression_sigmoid"
+    #args_train['norm_factor_response'] = None
+    #train_init(args_train, preprocess_params, path_params)
+

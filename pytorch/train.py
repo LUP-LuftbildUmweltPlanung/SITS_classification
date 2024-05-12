@@ -117,7 +117,7 @@ def train(trial,args_train,ref_dataset):
     print(f"Maximum DOY Sequence Length: {args_train['seqlength']}")
     print(f"Input Dims: {args_train['input_dims']}")
     print(f"Prediction Classes: {len(args_train['classes_lst'])}")
-    print(f"Data Augmentation: {p * 100} % Training Data will be augmented (either Scaling or Time Warping 50/50)")
+    print(f"Data Augmentation: {p * 100} % Training Data will be augmented (Single, Double or Triple (30/30/30) of Annual Scaling / DOY Day Shifting / Zero Out")
     model = getModel(args_train)
 
     store = os.path.join(args_train['store'],args_train['model'])
