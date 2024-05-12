@@ -13,10 +13,15 @@ from config_path import path_params
 
 #FORCE
 preprocess_params = {
-    "project_name" : "envilink_vv_3years", #Project Name that will be the name of output folder in temp & result subfolder
+    "project_name" : "test_workshop", #Project Name that will be the name of output folder in temp & result subfolder
     "time_range" : ["3","10-01"], # [time_range in years, start MM-DD for doy] !!
+<<<<<<< HEAD
     "aois" : glob.glob(f"/uge_mount/FORCE/new_struc/data/_SamplingPoints/uge_vv_30m_equalized/leipzig_2018_extract.shp"), ## reference points shape as single file or file list ## should have YYYY in name
     "column_name": 'vv', #column name for response variable in points
+=======
+    "aois" : glob.glob(f"/nne_mount/sits_framework/process/data/_SamplingPoints/test_workshop/potsdam_2023_points_extract.shp"), ## reference points shape as single file or file list ## should have YYYY in name
+    "column_name": 'vgh', #column name for response variable in points
+>>>>>>> 1007a94694683ab48a5de67708a9690eaa6dabf1
     "Interpolation" : False, ## Classification based on not interpolated Data just possible with Transformer
     "INT_DAY" : 10, ## interpolation time steps
     ###########################################
@@ -52,7 +57,7 @@ sampleref_param = {
     }
 
 args_train = {
-    'epochs': 80,  # number of training epochs
+    'epochs': 10,  # number of training epochs
     'valid_every_n_epochs': 2,  # skip some valid epochs for faster overall training
     'checkpoint_every_n_epochs': 2,  # save checkpoints during training
     'ref_split': 0.8, # split ratio for training, other part is validation
@@ -69,7 +74,7 @@ args_train = {
     'seed': 42,  # seed for batching and weight initialization
     'years': int(preprocess_params["time_range"][0]),  ###PLACEHOLDER #time series years for doy max sequence length
     'norm_factor_features': 1e-4,
-    'norm_factor_response': 1e-3,#None,
+    'norm_factor_response': None,#1e-3
     'order': sampleref_param["band_names"],
 }
 
@@ -79,6 +84,7 @@ if __name__ == '__main__':
     sample_to_ref_sepfiles(sampleref_param, preprocess_params, **path_params) # splits for single domain then goes to next
     #train_init(args_train, preprocess_params, path_params)
 
+<<<<<<< HEAD
 
 
     #preprocess_params["project_name"] = "envilink_vv_3years_2020"
@@ -93,3 +99,5 @@ if __name__ == '__main__':
     #args_train['norm_factor_response'] = None
     #train_init(args_train, preprocess_params, path_params)
 
+=======
+>>>>>>> 1007a94694683ab48a5de67708a9690eaa6dabf1

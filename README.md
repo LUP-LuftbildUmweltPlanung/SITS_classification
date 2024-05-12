@@ -5,7 +5,9 @@ Code for Satellite Image TimeSeries Classification. Adjusted from [Marc Rußwurm
 ## Getting Started
 
 ### Installing
-**conda create --name SITSclassforce python==3.9**
+**conda create --name SITSclass python==3.9**
+
+**conda activate SITSclass**
 
 **cd** */path/to/repository*
 
