@@ -13,12 +13,10 @@ from config_path import path_params
 
 #FORCE
 preprocess_params = {
-    "project_name" : "test_workshop", #Project Name that will be the name of output folder in temp & result subfolder
-    "time_range" : ["3","10-01"], # [time_range in years, start MM-DD for doy] !!
-    "aois" : glob.glob(f"/uge_mount/FORCE/new_struc/data/_SamplingPoints/uge_vv_30m_equalized/leipzig_2018_extract.shp"), ## reference points shape as single file or file list ## should have YYYY in name
-    "column_name": 'vv', #column name for response variable in points
-    "aois" : glob.glob(f"/nne_mount/sits_framework/process/data/_SamplingPoints/test_workshop/potsdam_2023_points_extract.shp"), ## reference points shape as single file or file list ## should have YYYY in name
-    "column_name": 'vgh', #column name for response variable in points
+    "project_name" : "jonathan_test", #Project Name that will be the name of output folder in temp & result subfolder
+    "time_range" : ["5","10-01"], # [time_range in years, start MM-DD for doy] !!
+    "aois" : glob.glob(f"/uge_mount/FORCE/new_struc/data/jonathan_test/traindata_2023.shp"), ## reference points shape as single file or file list ## should have YYYY in name
+    "column_name": 'encoded', #column name for response variable in points
     "Interpolation" : False, ## Classification based on not interpolated Data just possible with Transformer
     "INT_DAY" : 10, ## interpolation time steps
     ###########################################
@@ -38,11 +36,11 @@ preprocess_params = {
     "NTHREAD_READ": 7,  # 4,
     "NTHREAD_COMPUTE": 7,  # 11,
     "NTHREAD_WRITE": 2,  # 2,
-    "BLOCK_SIZE": 3000,
+    "BLOCK_SIZE": 1000,
     }
 
 sampleref_param = {
-    "split_train": 0.9, ### [0-1] for random split | [2010, ..., 2024, ..] for year test split (shapefile folder name)
+    "split_train": 0.7, ### [0-1] for random split | [2010, ..., 2024, ..] for year test split (shapefile folder name)
     "del_emptyTS": True, # if True empty timesteps gets deleted (TSS / Transformer), if False empty timesteps gets interpolated over bands (TSI)
     ###########################################
     ########Advanced Parameters################
@@ -54,43 +52,31 @@ sampleref_param = {
     }
 
 args_train = {
-    'epochs': 10,  # number of training epochs
+    'epochs': 80,  # number of training epochs
     'valid_every_n_epochs': 2,  # skip some valid epochs for faster overall training
     'checkpoint_every_n_epochs': 2,  # save checkpoints during training
     'ref_split': 0.8, # split ratio for training, other part is validation
     'model': "transformer",  # "tempcnn","rnn","msresnet","transformer", "rf"
-    'response': "regression_relu",  # "classification", "regression_relu" Use ReLU for 0 to infinity output, "regression_sigmoid" Use sigmoid for 0 to 1 output
+    'response': "classification",  # "classification", "regression_relu" Use ReLU for 0 to infinity output, "regression_sigmoid" Use sigmoid for 0 to 1 output
     ###########################################
     ########Advanced Parameters################
     ###########################################
     'augmentation': 1, # Percentage x*100 % for augmenting Training Data with DOY Day Shifting / annual Gaussian Scaling / Zero Out
     'augmentation_plot': None, #Plotting for Augmentations; either None or BandNumber [None, 1, 2, 3, 4, 5, ...]
-    'classes_lst': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], #classification classes
+    'classes_lst': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], #classification classes
     'tune': False,  # Hyperparameter Tune?
     'study_name': "test_workshop", # Name for Hyperparameter Trial
     'seed': 42,  # seed for batching and weight initialization
     'years': int(preprocess_params["time_range"][0]),  ###PLACEHOLDER #time series years for doy max sequence length
     'norm_factor_features': 1e-4,
-    'norm_factor_response': None,#1e-3
+    'norm_factor_response': None,#Response Scaling will be done before Caching, Should be None for Classification. Can be a Value e.g. 1e-3, None or "log10"
     'order': sampleref_param["band_names"],
 }
 
 if __name__ == '__main__':
 
-    #force_class(preprocess_params, **path_params)
+    force_class(preprocess_params, **path_params)
     sample_to_ref_sepfiles(sampleref_param, preprocess_params, **path_params) # splits for single domain then goes to next
-    #train_init(args_train, preprocess_params, path_params)
+    train_init(args_train, preprocess_params, path_params)
 
-
-    #preprocess_params["project_name"] = "envilink_vv_3years_2020"
-    #train_init(args_train, preprocess_params, path_params)
-    #preprocess_params["project_name"] = "envilink_vv_3years_09"
-    #train_init(args_train, preprocess_params, path_params)
-    #preprocess_params["project_name"] = "envilink_tcd_3years"
-    #sampleref_param["output_folder"] = f'{path_params["proc_folder"]}/_SITSrefdata/{preprocess_params["project_name"]}'
-    #sampleref_param["split_train"] = 0.9
-    #sample_to_ref_sepfiles(sampleref_param, preprocess_params, **path_params)
-    #args_train['response'] = "regression_sigmoid"
-    #args_train['norm_factor_response'] = None
-    #train_init(args_train, preprocess_params, path_params)
 

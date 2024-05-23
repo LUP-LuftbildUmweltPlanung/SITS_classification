@@ -25,11 +25,11 @@ def count_files_in_directory(directory):
     return len([name for name in os.listdir(directory) if os.path.isfile(os.path.join(directory, name))])
 
 # Define paths
-meta_csv_path = '/uge_mount/FORCE/new_struc/process/result/_SITSrefdata/envilink_vv_3years_2020/meta.csv'
-source_folder = '/uge_mount/FORCE/new_struc/process/result/_SITSrefdata/envilink_vv_3years_2020/sepfiles'
-new_root_folder = source_folder.replace("envilink_vv_3years_2020", "envilink_vv_3years_2020_reordered")
+meta_csv_path = '/uge_mount/FORCE/new_struc/process/result/_SITSrefdata/envilink_vv_3years_09/meta.csv'
+source_folder = '/uge_mount/FORCE/new_struc/process/result/_SITSrefdata/envilink_vv_3years_09/sepfiles'
+new_root_folder = source_folder.replace("envilink_vv_3years_09", "envilink_vv_3years_vechta")
 # User specifies the keyword (e.g., "augsburg" or "2022")
-keyword = 'augsburg'  # Change this to your needed filter
+keyword = 'vechta'  # Change this to your needed filter
 
 test_folder_source = os.path.join(source_folder, 'test/csv')
 train_folder_source = os.path.join(source_folder, 'train/csv')
@@ -78,7 +78,7 @@ for _, row in tqdm(meta_df.iterrows(), total=meta_df.shape[0], desc="Processing 
         destination_path = os.path.join(train_folder, original_file)
 
     shutil.copy(original_path, destination_path)
-    tqdm.write(f"Copied {original_file} to {'test' if row['is_test'] else 'train'} folder")
+    #tqdm.write(f"Copied {original_file} to {'test' if row['is_test'] else 'train'} folder")
 
 # Count files in new folders
 new_test_count = count_files_in_directory(test_folder)

@@ -186,13 +186,22 @@ def predict(model, tiles, args_predict):
                 #import time
                 #time.sleep(10000)
                 batch_predictions = model.forward(batch, batch_doy)[0]
-                if args_predict["norm_factor_response"] != None:
-                    batch_predictions = batch_predictions / args_predict["norm_factor_response"]
 
+                if args_predict["norm_factor_response"] == "log":
+                    batch_predictions = torch.pow(10, batch_predictions) - 1
+                elif args_predict["norm_factor_response"] != None:
+                    batch_predictions = batch_predictions / args_predict["norm_factor_response"]
                 # Handle classification or regression
                 if args_predict["response"] == "classification" and not args_predict["probability"]:
                     batch_predictions = torch.argmax(batch_predictions, dim=1)
-            #print(batch_predictions.shape)
+
+                if not args_predict["probability"]:
+                    # Check and ensure batch_predictions is 2D ## workaround ... not clear why shape error occurs by using classification
+                    if len(batch_predictions.shape) == 1:
+                        batch_predictions = batch_predictions.unsqueeze(1)
+                    elif len(batch_predictions.shape) > 2:
+                        batch_predictions = batch_predictions.view(batch_predictions.size(0), -1)
+
             predictions.append(batch_predictions.cpu())  # Move predictions back to CPU if needed
 
     return torch.cat(predictions, dim=0)
@@ -349,7 +358,10 @@ def predict_csv(args_predict):
                 prediction = torch.argmax(prediction, dim=1)
             prediction = prediction.squeeze().item()  # Assuming single prediction
             if args_predict["norm_factor_response"] != None:
-                prediction = prediction / args_predict["norm_factor_response"]
+                prediction = prediction / (args_predict["norm_factor_response"])
+            elif args_predict["norm_factor_response"] == "log":
+                prediction = 10 ** prediction - 1  # Reverse log10(x + 1) using Python's scalar operations
+
 
             # Create a DataFrame for the new row you want to add
             new_row_df = pd.DataFrame([{

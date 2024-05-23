@@ -162,7 +162,7 @@ def apply_augmentation(X, doy, p, plotting):
                 doy_aug = day_shifting(doy_aug, shift_range=16)
                 method = 'day shifting'
             else:
-                percentage_to_zero = np.random.randint(5, 51)
+                percentage_to_zero = np.random.randint(5, 71)
                 X_aug, doy_aug = zero_out_data(X_aug, doy_aug, percentage=percentage_to_zero, )
                 method = f'zero out {percentage_to_zero}%'
 
@@ -186,7 +186,7 @@ def apply_augmentation(X, doy, p, plotting):
 
         else:
             # Apply all three augmentations, ensuring zero out happens first
-            percentage_to_zero = np.random.randint(5, 51)
+            percentage_to_zero = np.random.randint(5, 71)
             X_aug = apply_scaling(X_aug, doy_aug, sigma=0.15)
             doy_aug = day_shifting(doy_aug, shift_range=16)
             X_aug, doy_aug = zero_out_data(X_aug, doy_aug, percentage=percentage_to_zero)

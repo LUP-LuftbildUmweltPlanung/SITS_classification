@@ -107,7 +107,6 @@ class Dataset(torch.utils.data.Dataset):
 
     # When loading:
     def load_cached_dataset(self):
-        # load
         self.y = np.load(os.path.join(self.cache, "y.npy"))
         self.ndims = int(np.load(os.path.join(self.cache, "ndims.npy")))
         self.sequencelengths = np.load(os.path.join(self.cache, "sequencelengths.npy"))
@@ -148,8 +147,11 @@ class Dataset(torch.utils.data.Dataset):
         X = data[:, 3:] * self.norm
         if self.norm_r == None:
             nutzcodes = data[:, 2]
+        elif self.norm_r == "log10":
+            nutzcodes = np.log10(data[:, 2] + 1)
         else:
             nutzcodes = data[:, 2] * self.norm_r
+
 
         doy = data[:, 1]
 
