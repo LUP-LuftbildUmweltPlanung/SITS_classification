@@ -1,31 +1,103 @@
 # SITS Classification
 
-Code for Satellite Image TimeSeries Classification. Adjusted from [Marc Rußwurm](https://github.com/MarcCoru) to e.g. fit in [FORCE Time Series Framework](https://force-eo.readthedocs.io/en/latest/index.html).
+Code for SatelliteImageTimeSeries (SITS) Classification based on [FORCE Time Series Framework](https://force-eo.readthedocs.io/en/latest/index.html).
 
-## Getting Started
 
-### Installing
-**conda create --name SITSclass python==3.9**
+## 1. Installing
+```
+conda create --name SITSclass python==3.9
+conda activate SITSclass
+cd /path/to/repository/SITS_classification
+pip install -r requirements.txt
+sudo apt-get install xterm
+```
 
-**conda activate SITSclass**
+_**Notes:**_
 
-**cd** */path/to/repository*
+code is build upon FORCE-Datacube and -Framework (Docker, FORCE-Version 3.7.11)
 
-**pip install -r requirements.txt**
+[How to Install FORCE with Docker](https://force-eo.readthedocs.io/en/latest/setup/docker.html#docker)
 
-**sudo apt-get install xterm**
 
-**force docker Version 3.7.11**
-### Usage
-...
+
+## 2. Getting Started
+
+### 2.1 Basics
+The script is based on the following folder structure:
+
+<img src="img/folderstructure.png" width="500" height="500" />
+
+**Take Care:**
+
+Initial path of process folder and docker mounts has to be defined in ***config_path.py***
+
+
+**To use the scripts:**
+
+1. Transfer aoi / reference data to ...process/data/ folder
+
+2. Specify parameters within the _main_ scripts and execute them:
+
+- class_main_1_sampling.py
+- class_main_2_train.py
+- class_main_3_predict.py
+
+There are various entry points and use cases which are briefly presented in the following flowchat:
+
+<img src="img/flowchart.png" width="500" height="400" /> 
+
+## 2.2 Workflow
+
+### a) Training
+
+If you just want to Predict with existing model you can continue with chapter b) Prediction.
+
+#### *class_main_1_sampling.py*
+
+If you already have sample points with response variable you can skip the first Step but be aware:
+
+- for classification you need continous values starting from [0, 1, 2, ...].
+- naming of points should include one four digit number related to the year where the time series should end 
+
+For parameter descriptions read the comments within the script. Please note:
+- the input for the sampling script are one or multiple shapefiles that contain one polygon as area of interest 
+- you can use the implementation for stratification by defining paths to raster files but expecially for multiple files be aware of the right order for shapefiles and startification raster files (naming)
+- the output folder for sample points will be in ./data/_SamplingPoints/
+
+
+#### *class_main_2_train.py*
+Within the training script, there are 3 steps with their respective parameter settings:
+
+- preprocess_params (Preprocessing via FORCE)
+- sampleref_param (Sampling of features for classification)
+- args_train (parameters for model training)
+
+The parameters are described in the respective file.
+
+Especially for DeepLearning models Hyperparameters can be crucial. You can either configure them at *config_hyperparameter.py* or try different combinations by setting tune in args_train to True. While tuning hyperparameter a new folder next to the model will be created named optuna. To analyze hyperparameter tuning results open terminal and type the following:
+```
+conda activate SITSclass
+optuna-dashboard /path/to/optuna/config
+```
+
+### b) Prediction
+To make a prediction, simply define a project name and set the model path & shapefile for the study area.
+The prediction is based on the year in the shapefile of the study area.
+
+Additionally, the following settings can be adjusted:
+ 
+Chunksize can be modified --> A larger chunksize leads to faster calculations but may reach the GPU's limit with longer time series
+Deep Learning models base their class predictions on probabilities. In addition to predicting target classes, the raw value can also be output with the 'probability' parameter.
+
+
 
 ## Versioning
-...
+1.0
 
 
 ## Authors
 
-* [**Benjamin Stöckigt (LUP)**](https://github.com/Bensouh)
+* [**Benjamin Stöckigt**](https://github.com/Bensouh)
 
 ## License
 

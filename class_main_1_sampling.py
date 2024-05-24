@@ -2,7 +2,7 @@
 """
 Created on Tue Aug 22 20:30:26 2023
 
-@author: Admin
+@author: benjaminstoeckigt
 """
 
 import glob

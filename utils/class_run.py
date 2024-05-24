@@ -17,6 +17,11 @@ from sklearn.model_selection import train_test_split
 import shutil
 from tqdm import tqdm
 import datetime
+from force.force_class_utils import force_class
+
+def force_sample(sampleref_param, preprocess_params, path_params):
+    force_class(preprocess_params, **path_params)
+    sample_to_ref_sepfiles(sampleref_param, preprocess_params, **path_params) # splits for single domain then goes to next
 
 def sample_to_ref_onefile(force_dir,local_dir,force_skel,scripts_skel,temp_folder,mask_folder,
  proc_folder,data_folder,project_name,hold,response_lst,features_lst,response_out,features_out,bands,split_train):
