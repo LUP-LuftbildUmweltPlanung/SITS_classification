@@ -25,7 +25,7 @@ code is build upon FORCE-Datacube and -Framework (Docker, FORCE-Version 3.7.11)
 ### 2.1 Basics
 The script is based on the following folder structure:
 
-<img src="img/folderstructure.png" width="500" height="500" />
+<img src="img/folderstructure.png" width="700" height="700" />
 
 **Take Care:**
 
@@ -44,7 +44,7 @@ Initial path of process folder and docker mounts has to be defined in ***config_
 
 There are various entry points and use cases which are briefly presented in the following flowchat:
 
-<img src="img/flowchart.png" width="500" height="400" /> 
+<img src="img/flowchart.png" width="700" height="600" /> 
 
 ## 2.2 Workflow
 
