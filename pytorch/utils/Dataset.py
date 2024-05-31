@@ -152,7 +152,6 @@ class Dataset(torch.utils.data.Dataset):
         else:
             nutzcodes = data[:, 2] * self.norm_r
 
-
         doy = data[:, 1]
 
         # # Read CSV file using pandas
@@ -172,7 +171,6 @@ class Dataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         X, y, doy = self.X[idx], self.y[idx], self.doy[idx]
-
         X_tensor = torch.from_numpy(X).float()
         doy_tensor = torch.from_numpy(doy).float()  # Assuming doy is already a numpy array
         y_tensor = torch.tensor(y, dtype=torch.long if self.response == "classification" else torch.float)

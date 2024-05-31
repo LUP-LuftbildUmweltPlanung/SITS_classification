@@ -141,66 +141,33 @@ def predict(model, tiles, args_predict):
     print(f"Predicting with Chunksize {chunksize} from {data.shape[0]}")
     with torch.no_grad():
         for i in tqdm(range(0, data.shape[0], chunksize)):
-            #print(i)  # Debugging print to check the batch index
-            # Select batch and perform normalization and conversion to tensor here
             batch = data[i:i + chunksize] * normalizing_factor
-
-            # Correctly casting DOY to long
+            non_zero_mask = np.any(batch != 0, axis=(1, 2))
             doy = np.array(doy_single)
+            doy = np.tile(doy, (batch.shape[0], 1))
 
-            # ####### Preprocess step: Filter and Pad START
-            # # Updated Preprocess step: Filter and Pad
-            # # Updated filter and pad logic
-            # mask = np.any(batch != 0, axis=1)  # Identify non-zero spectral values across timesteps
-            # max_timesteps = max(np.sum(mask, axis=1)) if np.sum(mask) > 0 else 1  # Ensure at least 1
-            # # Initialize new_batch with zeros to ensure a tensor is always created
-            # new_batch = np.zeros((batch.shape[0], batch.shape[1], max_timesteps))
-            # new_doy = np.zeros((batch.shape[0], max_timesteps))
-            # for j in range(batch.shape[0]):
-            #     valid_timesteps = np.where(mask[j])[0]
-            #     if len(valid_timesteps) > 0:
-            #         # Correctly copy valid timesteps
-            #         # The correct shape should be maintained, so make sure dimensions match
-            #         new_batch[j, :, :len(valid_timesteps)] = batch[j, :, valid_timesteps].transpose()
-            #         new_doy[j, :len(valid_timesteps)] = doy[valid_timesteps].transpose()  # Copy valid DOYs
-            # ####### Preprocess step: Filter and Pad ENDE
-
-            current_batch_size = batch.shape[0]  # Actual batch size may be less than chunksize for the last chunk
-            # expanding it
-            doy = np.tile(doy, (current_batch_size, 1))
-            if np.all(batch == 0):
-                # Create a tensor of zeros with the shape [current_batch_size, 1]
-                # since you mentioned the desired shape is [10000, 1],
-                # here we adjust it dynamically based on the current batch size
-                batch_predictions = torch.full((current_batch_size, 1), -9999, dtype=torch.float32)
+            if not np.any(non_zero_mask):
+                batch_predictions = torch.full((batch.shape[0], 1), -9999, dtype=torch.float32, device=device)
             else:
-                # Create a boolean mask for samples where all values across all spectral bands are 0
-                #all_zero_spectral = np.all(batch == 0, axis=1)
-                # Apply the mask: Set doy values to 0 where the condition is true
-                #doy[all_zero_spectral] = 0
-                batch = torch.tensor(batch, dtype=torch.float32, device=device)
-                batch_doy = torch.tensor(doy, dtype=torch.long, device=device)
-                # Predict
-                #print(batch.shape)
-                #print(batch_doy.shape)
-                #import time
-                #time.sleep(10000)
-                batch_predictions = model.forward(batch, batch_doy)[0]
+                batch_non_zero = batch[non_zero_mask]
+                doy_non_zero = doy[non_zero_mask]
+                batch_tensor = torch.tensor(batch_non_zero, dtype=torch.float32, device=device)
+                doy_tensor = torch.tensor(doy_non_zero, dtype=torch.long, device=device)
 
-                if args_predict["norm_factor_response"] == "log":
-                    batch_predictions = torch.pow(10, batch_predictions) - 1
-                elif args_predict["norm_factor_response"] != None:
-                    batch_predictions = batch_predictions / args_predict["norm_factor_response"]
-                # Handle classification or regression
+                predictions_non_zero = model(batch_tensor, doy_tensor)[0]
+
+                # Handle normalization response factor
+                norm_factor_response = args_predict.get("norm_factor_response")
+                if norm_factor_response == "log":
+                    predictions_non_zero = torch.pow(10, predictions_non_zero) - 1
+                elif norm_factor_response is not None and norm_factor_response != 0:
+                    predictions_non_zero = predictions_non_zero / norm_factor_response
+
                 if args_predict["response"] == "classification" and not args_predict["probability"]:
-                    batch_predictions = torch.argmax(batch_predictions, dim=1)
+                    predictions_non_zero = torch.argmax(predictions_non_zero, dim=1).unsqueeze(1)  # Ensure 2D
 
-                if not args_predict["probability"]:
-                    # Check and ensure batch_predictions is 2D ## workaround ... not clear why shape error occurs by using classification
-                    if len(batch_predictions.shape) == 1:
-                        batch_predictions = batch_predictions.unsqueeze(1)
-                    elif len(batch_predictions.shape) > 2:
-                        batch_predictions = batch_predictions.view(batch_predictions.size(0), -1)
+                batch_predictions = torch.full((batch.shape[0], *predictions_non_zero.shape[1:]), -9999, dtype=torch.float32, device=device)
+                batch_predictions[non_zero_mask] = predictions_non_zero
 
             predictions.append(batch_predictions.cpu())  # Move predictions back to CPU if needed
 

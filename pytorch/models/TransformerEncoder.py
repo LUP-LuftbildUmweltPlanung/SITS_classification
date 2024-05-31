@@ -69,7 +69,6 @@ class TransformerEncoder(ClassificationModel):
         mask_x = x
 
         x = self.inlayernorm(x)
-
         x = self.inconv(x.transpose(1,2)).transpose(1,2)
         #x = self.inconv_bn(x)
         x = self.convlayernorm(x)

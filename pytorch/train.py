@@ -57,7 +57,6 @@ def collate_fn(batch, p, plotting):
     return X_padded, y_padded, doy_padded
 
 def train(trial,args_train,ref_dataset):
-
     # add the splitting part here
     if args_train["tune"]==True:
         new_args_tune = hyperparameter_tune(trial,args_train['model'])

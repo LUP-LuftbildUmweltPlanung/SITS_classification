@@ -77,6 +77,7 @@ def check_and_reproject_shapefile(shapefile_path, target_epsg=3035):
         return shapefile_path
 
 def force_class(preprocess_params, force_dir, local_dir, force_skel, scripts_skel, temp_folder, mask_folder, **kwargs):
+    #defining parameters outsourced from main script
     if preprocess_params["Interpolation"] == False:
         OUTPUT_TSS = 'TRUE'  ## Classification based on TSS just possible for Transformer
         OUTPUT_TSI = 'FALSE'  ## Classification based on TSI possible for Transformer, TempCNN, , LSTM, MSResnet
@@ -92,6 +93,7 @@ def force_class(preprocess_params, force_dir, local_dir, force_skel, scripts_ske
     if preprocess_params["date_ranges"] == None:
         preprocess_params["date_ranges"] = [f"{year - int(time_range[0])}-{time_range[1]} {year}-{time_range[1]}" for year in preprocess_params["years"]]
     #preprocess_params["date_ranges"] = ['2015-01-01 2024-12-31']
+    ###save preprocessing settings for prediction
     os.makedirs(f'{temp_folder}/{project_name}/FORCE', exist_ok=True)
     with open(f"{temp_folder}/{project_name}/preprocess_settings.json", 'w') as file:
         json.dump(preprocess_params, file, indent=4)
