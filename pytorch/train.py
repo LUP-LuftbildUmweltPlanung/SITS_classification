@@ -35,13 +35,12 @@ def prepare_dataset(args):
     if args['seed'] is not None:
         torch.random.manual_seed(args['seed'])
 
-    ref_dataset = Dataset(root=args['data_root'], classes=args['classes_lst'], seed=args['seed'], response=args['response'], norm=args['norm_factor_features'], bands=args['order'], norm_response = args['norm_factor_response'])
+    ref_dataset = Dataset(root=args['data_root'], classes=args['classes_lst'], seed=args['seed'], response=args['response'], norm=args['norm_factor_features'], norm_response = args['norm_factor_response'])
 
     return ref_dataset
 
 def collate_fn(batch, p, plotting):
     X_batch, y_batch, doy_batch = zip(*batch)
-
     # Apply augmentation with probability p to each item in the batch
     X_batch_augmented = []
     doy_batch_augmented = []
@@ -53,7 +52,6 @@ def collate_fn(batch, p, plotting):
     X_padded = pad_sequence(X_batch_augmented, batch_first=True, padding_value=0)
     doy_padded = pad_sequence(doy_batch_augmented, batch_first=True, padding_value=0)
     y_padded = torch.stack(y_batch)
-
     return X_padded, y_padded, doy_padded
 
 def train(trial,args_train,ref_dataset):
@@ -105,7 +103,7 @@ def train(trial,args_train,ref_dataset):
     print(f"Validation Sample Size: {len(validdataloader.dataset)}")
 
     if args_train['model'] in ["transformer"]:
-        args_train['seqlength'] = 366 * args_train['years'] #2562#
+        args_train['seqlength'] = args_train['max_seq_length']
     elif args_train['model'] in ["rnn", "msresnet","tempcnn"]:
         args_train['seqlength'] = traindataloader.dataset.dataset.dataset.sequencelength
     # OPTUNA: this is the build_model_custom(trial)
@@ -191,10 +189,12 @@ def getModel(args):
     return model
 
 
-def train_init(args_train, preprocess_params, path_params):
+def train_init(args_train, preprocess_params):
+
     args_train["workers"] = 10  # number of CPU workers to load the next batch
-    args_train["data_root"] = f'{path_params["proc_folder"]}/_SITSrefdata/{preprocess_params["project_name"]}/sepfiles/train/' # folder with CSV or cached NPY folder
-    args_train["store"] = f'{path_params["proc_folder"]}/_SITSModels/{preprocess_params["project_name"]}/'  # Store Model Data Path
+
+    args_train["data_root"] = f'{preprocess_params["process_folder"]}/results/_SITSrefdata/{preprocess_params["project_name"]}/sepfiles/train/' # folder with CSV or cached NPY folder
+    args_train["store"] = f'{preprocess_params["process_folder"]}/results/_SITSModels/{preprocess_params["project_name"]}/'  # Store Model Data Path
     # create hw_monitor output dir if it doesn't exist
     Path(args_train['store'] + '/' + args_train['model'] + '/hw_monitor').mkdir(parents=True, exist_ok=True)
     drive_name = ["sdb1"]

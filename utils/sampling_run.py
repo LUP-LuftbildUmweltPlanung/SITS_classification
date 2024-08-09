@@ -150,10 +150,11 @@ def generate_points_based_on_distance(tolerance, aoi_shp, total_points, distance
 
     return points  # Return the list of generated points
 
-def sampling(data_folder,project_name,aoi_files,output_n,output_n_m,percent,distance,
+def sampling(project_name,process_folder,aoi_files,output_n,output_n_m,percent,distance,
     value_ranges_vegh,value_ranges_tcd,vegh_files,tcd_files,**kwargs):
+
     tolerance = 2
-    output_folder = f"{data_folder}/_SamplingPoints/{project_name}"
+    output_folder = f"{process_folder}/results/_SamplingPoints/{project_name}"
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
     #print(vegh_files)
@@ -270,7 +271,7 @@ def sampling(data_folder,project_name,aoi_files,output_n,output_n_m,percent,dist
 
             print(f"Finished processing for {city} {year}")
             # print stratifications:
-            analyze_shapefiles(f'{data_folder}/_SamplingPoints/{project_name}')
+            analyze_shapefiles(f'{process_folder}/results/_SamplingPoints/{project_name}')
 
 
 def modify_and_run_script(script_path, shp_value, tif_value, output_value):
@@ -294,10 +295,12 @@ def modify_and_run_script(script_path, shp_value, tif_value, output_value):
     os.remove(temp_file.name)
 
 
-def extract_ref(project_name,raster_path,column_name,scripts_skel,data_folder,**kwargs):
+def extract_ref(project_name,process_folder,raster_path,column_name,**kwargs):
+    scripts_skel = f"{os.path.dirname(os.path.dirname(os.path.abspath(__file__)))}/force/skel"
+
     script_path = f"{scripts_skel}/zonal_rasterstats_mp.py"
-    shapefile_path = sorted(glob.glob(f"{data_folder}/_SamplingPoints/{project_name}/*shp"))
-    o_folder = f"{data_folder}/_SamplingPoints/{project_name}"
+    shapefile_path = sorted(glob.glob(f"{process_folder}/results/_SamplingPoints/{project_name}/*shp"))
+    o_folder = f"{process_folder}/results/_SamplingPoints/{project_name}"
     for shape, raster in zip(shapefile_path, raster_path):
         print(f"extracting for {shape}")
 

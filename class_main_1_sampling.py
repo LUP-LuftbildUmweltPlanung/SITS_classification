@@ -8,7 +8,6 @@ Created on Tue Aug 22 20:30:26 2023
 import glob
 from utils.sampling_run import sampling
 from utils.sampling_run import analyze_shapefiles
-from config_path import path_params
 import os
 #####################################
 ###########SAMPLING##################
@@ -18,6 +17,7 @@ import os
 sampling_params = {
     ###BASIC PARAMS###
     "project_name": "test_workshop", #Project Name that will be the name of the output folder in temp & result subfolder
+    "process_folder": "/uge_mount/FORCE/new_struc/process/",
     #input aoi (can be list or single files) --> CONDITION: "City"_"Year"_*.shp
     "aoi_files": sorted(glob.glob(r"/nne_mount/sits_framework/process/data/workshop_aoi/potsdam_2023_laea.shp")), #aoi as shapefile ## can be multiple shapefiles /path/to/shapes/*.shp
     "output_n" : ["potsdam"], #naming of output sampling points xx_**.shp, e.g. ["sbs"]
@@ -50,5 +50,5 @@ extract_param = {
 
 if __name__ == '__main__':
 
-    sampling(**path_params,**sampling_params)
-    extract_ref(**sampling_params, **extract_param, **path_params)
+    sampling(**sampling_params)
+    extract_ref(**sampling_params, **extract_param)

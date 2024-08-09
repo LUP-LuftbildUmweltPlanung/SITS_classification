@@ -14,11 +14,13 @@ sudo apt-get install xterm
 
 _**Notes:**_
 
-code is build upon FORCE-Datacube and -Framework (Docker, FORCE-Version 3.7.11)
+code is build upon FORCE-Datacube and -Framework (Docker, recommended FORCE-Version 3.7.11)
 
-[How to Install FORCE with Docker](https://force-eo.readthedocs.io/en/latest/setup/docker.html#docker)
+-> [How to Install FORCE with Docker](https://force-eo.readthedocs.io/en/latest/setup/docker.html#docker)
 
+code is build upon CUDA 11.4 
 
+_*Can also work with other versions but be careful with other libraries or changed functionalities*_
 
 ## 2. Getting Started
 
@@ -27,24 +29,22 @@ The script is based on the following folder structure:
 
 <img src="img/folderstructure.png" width="650" height="700" />
 
-**Take Care:**
-
-Initial path of process folder and docker mounts has to be defined in ***config_path.py***
-
-
 **To use the scripts:**
 
-1. Transfer aoi / reference data to ...process/data/ folder
-
-2. Specify parameters within the _main_ scripts and execute them:
+Specify parameters within the _main_ scripts and execute them:
 
 - class_main_1_sampling.py
 - class_main_2_train.py
 - class_main_3_predict.py
 
-There are various entry points and use cases which are briefly presented in the following flowchat:
+**There are various entry points and use cases which are briefly presented in the following flowchart:**
+
+To exclude FORCE for Training and use already existing Features & Responses take a look at the example files:
+./pytorch/example/_SITSrefdata/...
+Note: preprocess_settings.json is used to carry uniform settings from training to prediction with a model
 
 <img src="img/flowchart.png" width="700" height="700" /> 
+
 
 ## 2.2 Workflow
 
@@ -57,19 +57,17 @@ If you just want to Predict with existing model you can continue with chapter b)
 If you already have sample points with response variable you can skip the first Step but be aware:
 
 - for classification you need continous values starting from [0, 1, 2, ...].
-- naming of points should include one four digit number related to the year where the time series should end 
 
 For parameter descriptions read the comments within the script. Please note:
 - the input for the sampling script are one or multiple shapefiles that contain one polygon as area of interest 
 - you can use the implementation for stratification by defining paths to raster files but expecially for multiple files be aware of the right order for shapefiles and startification raster files (naming)
-- the output folder for sample points will be in ./data/_SamplingPoints/
+- the output folder for sample points will be in ./results/_SamplingPoints/
 
 
 #### *class_main_2_train.py*
 Within the training script, there are 3 steps with their respective parameter settings:
 
-- preprocess_params (Preprocessing via FORCE)
-- sampleref_param (Sampling of features for classification)
+- preprocess_params (preprocessing via FORCE & sampling of features for classification)
 - args_train (parameters for model training)
 
 The parameters are described in the respective file.

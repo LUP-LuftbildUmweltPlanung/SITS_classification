@@ -55,6 +55,46 @@ def time_warp(X, sigma=0.001):
     else:
         return torch.from_numpy(np.interp(warped_indices, original_indices, X.numpy()))
 
+
+def year_shifting(doy, shift_range=16):
+    """
+    Shifts the day of year (DOY) randomly within a specified range for each year.
+
+    Args:
+    doy : torch.Tensor
+        Tensor containing the day of the year for each observation.
+    shift_range : int
+        Maximum range of days for shifting, both positive and negative.
+
+    Returns:
+    torch.Tensor
+        Adjusted DOY values that stay within the original boundaries.
+    """
+    min_doy = torch.min(doy)
+    max_doy = torch.max(doy)
+
+    # Calculate the minimum and maximum day of year values for each year
+    years = (doy - 1) // 365
+    unique_years = torch.unique(years)
+    min_doy_per_year = unique_years * 365 + 1
+    max_doy_per_year = (unique_years + 1) * 365
+
+    # Generate random shifts within the specified range for each year
+    shifts = torch.randint(-shift_range, shift_range + 1, size=(len(unique_years),), dtype=torch.int32)
+
+    # Apply shifts to each year and clamp within the min and max DOY for each year
+    shifted_doy = torch.zeros_like(doy)
+    for year, min_doy_year, max_doy_year, shift in zip(unique_years, min_doy_per_year, max_doy_per_year, shifts):
+        year_mask = years == year
+        shifted_doy[year_mask] = torch.clamp(doy[year_mask] + shift, min_doy_year, max_doy_year)
+
+    # Clamp again to ensure overall min and max DOY are respected
+    shifted_doy = torch.clamp(shifted_doy, min_doy, max_doy)
+
+    return shifted_doy
+
+
+
 def day_shifting(doy, shift_range=16):
     """
     Shifts the day of year (DOY) randomly within a specified range, skipping indices specified by a mask.
@@ -159,7 +199,7 @@ def apply_augmentation(X, doy, p, plotting):
                 X_aug = apply_scaling(X_aug, doy_aug, sigma=0.15)
                 method = 'scaling'
             elif aug_type == 'day shifting':
-                doy_aug = day_shifting(doy_aug, shift_range=16)
+                doy_aug = year_shifting(doy_aug, shift_range=16)
                 method = 'day shifting'
             else:
                 percentage_to_zero = np.random.randint(5, 71)
@@ -176,7 +216,7 @@ def apply_augmentation(X, doy, p, plotting):
                     X_aug = apply_scaling(X_aug, doy_aug, sigma=0.15)
                     methods.append('scaling')
                 elif aug == 'day shifting':
-                    doy_aug = day_shifting(doy_aug, shift_range=16)
+                    doy_aug = year_shifting(doy_aug, shift_range=16)
                     methods.append('day shifting')
                 else:
                     percentage_to_zero = np.random.randint(5, 71)
@@ -188,7 +228,7 @@ def apply_augmentation(X, doy, p, plotting):
             # Apply all three augmentations, ensuring zero out happens first
             percentage_to_zero = np.random.randint(5, 71)
             X_aug = apply_scaling(X_aug, doy_aug, sigma=0.15)
-            doy_aug = day_shifting(doy_aug, shift_range=16)
+            doy_aug = year_shifting(doy_aug, shift_range=16)
             X_aug, doy_aug = zero_out_data(X_aug, doy_aug, percentage=percentage_to_zero)
             method = 'scaling & day shifting & zero out'
 

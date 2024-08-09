@@ -1,13 +1,13 @@
+from pytorch.train import getModel
+from pytorch.utils.hw_monitor import HWMonitor, disk_info, squeeze_hw_info
+from force.force_class_utils import force_class
+
 import os
 import torch
 import rasterio
-import sys
 import numpy as np
-
+import re
 from pathlib import Path
-
-from pytorch.train import getModel
-from pytorch.utils.hw_monitor import HWMonitor, disk_info, squeeze_hw_info
 from tqdm import tqdm
 import glob
 import json
@@ -16,6 +16,32 @@ import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Point
 from rasterio.merge import merge
+
+
+def predict(args_predict):
+
+    preprocess_params = load_preprocess_settings(os.path.dirname(args_predict["model_path"]))
+    preprocess_params["aois"] = args_predict["aois"]
+
+    if args_predict["years"] == None:
+        preprocess_params["years"] = [int(re.search(r'(\d{4})', os.path.basename(f)).group(1)) for f in preprocess_params["aois"] if re.search(r'(\d{4})', os.path.basename(f))]
+    else:
+        preprocess_params["years"] = args_predict["years"]
+
+    time_range = preprocess_params["time_range"]
+    preprocess_params["date_ranges"] = [f"{year - int(time_range[0])}-{time_range[1]} {year}-{time_range[1]}" for year in preprocess_params["years"]]
+    preprocess_params["hold"] = False
+    preprocess_params["sample"] = False
+    preprocess_params["project_name"] = args_predict["project_name"]
+    preprocess_params["force_dir"] = args_predict["force_dir"]
+    preprocess_params["process_folder"] = args_predict["process_folder"]
+
+    args_predict["time_range"] = preprocess_params["time_range"]
+    args_predict["feature_order"] = preprocess_params["feature_order"]
+
+    force_class(preprocess_params)
+    predict_init(args_predict)
+
 
 def mosaic_rasters(input_pattern, output_filename):
     """
@@ -112,10 +138,10 @@ def read_tif_files(folder_path, order, year, month, day):
     return bands_data,doy
 
 
-def predict(model, tiles, args_predict):
+def predict_singlegrid(model, tiles, args_predict):
     print(f"Preprocessing the Data for Prediction ...")
     # Read TIFF files
-    order = args_predict["order"]
+    order = args_predict["feature_order"]
     normalizing_factor = args_predict["norm_factor_features"]
     chunksize = args_predict["chunksize"]
     year = int(args_predict['time_range'][0])
@@ -158,7 +184,7 @@ def predict(model, tiles, args_predict):
 
                 # Handle normalization response factor
                 norm_factor_response = args_predict.get("norm_factor_response")
-                if norm_factor_response == "log":
+                if norm_factor_response == "log10":
                     predictions_non_zero = torch.pow(10, predictions_non_zero) - 1
                 elif norm_factor_response is not None and norm_factor_response != 0:
                     predictions_non_zero = predictions_non_zero / norm_factor_response
@@ -261,11 +287,10 @@ def predict_raster(args_predict):
     tiles = args_predict['folder_path']
     glob_tiles = glob.glob(tiles)
     model = load_model(model_path,args_predict)
-
     for tile in glob_tiles:
         print("###" * 15)
         print(f"Started Prediction for Tile {os.path.basename(tile)}")
-        prediction = predict(model,tile,args_predict)
+        prediction = predict_singlegrid(model,tile,args_predict)
         reshape_and_save(prediction,tile,args_predict)
 
 
@@ -286,7 +311,7 @@ def predict_csv(args_predict):
     hyp = load_hyperparametersplus(os.path.dirname(args_predict["model_path"]))
     args_predict.update(hyp)
     model_path = args_predict['model_path']
-    order = args_predict["order"]
+    order = args_predict["feature_order"]
     model = load_model(model_path, args_predict)
 
     # Load metadata
@@ -324,11 +349,13 @@ def predict_csv(args_predict):
             if args_predict["response"] == "classification":
                 prediction = torch.argmax(prediction, dim=1)
             prediction = prediction.squeeze().item()  # Assuming single prediction
-            if args_predict["norm_factor_response"] != None:
-                prediction = prediction / (args_predict["norm_factor_response"])
-            elif args_predict["norm_factor_response"] == "log":
+            if args_predict["norm_factor_response"] == "log10":
                 prediction = 10 ** prediction - 1  # Reverse log10(x + 1) using Python's scalar operations
+            elif args_predict["norm_factor_response"] != None:
+                prediction = prediction / (args_predict["norm_factor_response"])
 
+            #print(pixel_df['label'].iloc[0])
+            #print(prediction)
 
             # Create a DataFrame for the new row you want to add
             new_row_df = pd.DataFrame([{
@@ -354,8 +381,10 @@ def predict_csv(args_predict):
     return predictions_df
 
 
-def predict_init(args_predict, proc_folder, temp_folder, **kwargs):
+def predict_init(args_predict, **kwargs):
 
+    temp_folder = args_predict['process_folder'] + "/temp"
+    proc_folder = args_predict['process_folder'] + "/results"
     if not args_predict['reference_folder']:
         if isinstance(args_predict['aois'], list):
             for basen in args_predict['aois']:

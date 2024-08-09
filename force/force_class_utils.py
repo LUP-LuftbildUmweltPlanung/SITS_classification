@@ -12,12 +12,11 @@ def generate_input_feature_line(tif_path, num_layers):
     sequence = ' '.join(str(i) for i in range(1, num_layers + 1))
     return f"INPUT_FEATURE = {tif_path} {sequence}"
 
-def replace_parameters_feature(filename, tif_file):
+def replace_parameters_feature(filename, tif_file, order):
     #tif_files = glob.glob(f"{tif_file}/*.tif")
     bandnumbers = rasterio.open(glob.glob(f"{tif_file}/*.tif")[1]).count
     tif_files = [os.path.basename(f) for f in glob.glob(f"{tif_file}/*.tif")]
-    # Sort the tif_files based on the wavelength band in their filenames
-    order = ["BLU", "GRN", "RED", "NIR", "SW1", "SW2", "RE1", "RE2", "RE3", "BNR"]
+
     tif_files.sort(key=lambda x: order.index(x.split('_')[-2]))
     input_features = [generate_input_feature_line(tif_file, bandnumbers) for tif_file in tif_files]
 
@@ -76,7 +75,16 @@ def check_and_reproject_shapefile(shapefile_path, target_epsg=3035):
         print("Shapefile is already in EPSG: 3035")
         return shapefile_path
 
-def force_class(preprocess_params, force_dir, local_dir, force_skel, scripts_skel, temp_folder, mask_folder, **kwargs):
+def force_class(preprocess_params):
+    force_dir = f"{preprocess_params['force_dir']}:{preprocess_params['force_dir']}"
+    local_dir = f"{os.sep + preprocess_params['process_folder'].split(os.sep)[1]}:{os.sep + preprocess_params['process_folder'].split(os.sep)[1]}"
+    scripts_skel = f"{os.path.dirname(os.path.dirname(os.path.abspath(__file__)))}/force/skel"
+    force_skel = f"{scripts_skel}/force_cube_sceleton"
+    temp_folder = preprocess_params['process_folder'] + "/temp"
+    mask_folder = preprocess_params['process_folder'] + "/temp/_mask"
+
+    preprocess_params.setdefault("sample", True) ## True for Training
+
     #defining parameters outsourced from main script
     if preprocess_params["Interpolation"] == False:
         OUTPUT_TSS = 'TRUE'  ## Classification based on TSS just possible for Transformer
@@ -86,17 +94,17 @@ def force_class(preprocess_params, force_dir, local_dir, force_skel, scripts_ske
         OUTPUT_TSI = 'TRUE'  ## Classification based on TSI possible for Transformer, TempCNN, , LSTM, MSResnet
 
     project_name = preprocess_params["project_name"]
-    time_range = preprocess_params["time_range"]
 
-    if preprocess_params["years"] == None:
-        preprocess_params["years"] = [int(re.search(r'(\d{4})', os.path.basename(f)).group(1)) for f in preprocess_params["aois"] if re.search(r'(\d{4})', os.path.basename(f))]
-    if preprocess_params["date_ranges"] == None:
-        preprocess_params["date_ranges"] = [f"{year - int(time_range[0])}-{time_range[1]} {year}-{time_range[1]}" for year in preprocess_params["years"]]
     #preprocess_params["date_ranges"] = ['2015-01-01 2024-12-31']
     ###save preprocessing settings for prediction
     os.makedirs(f'{temp_folder}/{project_name}/FORCE', exist_ok=True)
+    # List of keys you want to save
+    keys_to_save = ["time_range","Interpolation","INT_DAY","Sensors","Indices","SPECTRAL_ADJUST","INTERPOLATE","ABOVE_NOISE","BELOW_NOISE","NTHREAD_READ","NTHREAD_COMPUTE","NTHREAD_WRITE","BLOCK_SIZE","band_names","start_doy_month","feature_order"]  # replace these with the actual keys you want to save
+    # Create a new dictionary with only the specified keys
+    filtered_params = {key: preprocess_params[key] for key in keys_to_save if key in preprocess_params}
+    # Save the filtered dictionary to the JSON file
     with open(f"{temp_folder}/{project_name}/preprocess_settings.json", 'w') as file:
-        json.dump(preprocess_params, file, indent=4)
+        json.dump(filtered_params, file, indent=4)
 
     #subprocess.run(['sudo', 'chmod', '-R', '777', f"{Path(temp_folder).parent}"])
     subprocess.run(['sudo', 'chmod', '-R', '777', f"{Path(scripts_skel).parent}"])
@@ -276,7 +284,7 @@ def force_class(preprocess_params, force_dir, local_dir, force_skel, scripts_ske
 
                 # Use the function
                 tif_file = glob.glob(f"{temp_folder}/{project_name}/FORCE/{basename}/tiles_tss/X00{x_c}_Y00{y_c}")[0]
-                replace_parameters_feature(f"{temp_folder}/{project_name}/FORCE/{basename}/sample_X00{x_c}_Y00{y_c}.prm", tif_file)
+                replace_parameters_feature(f"{temp_folder}/{project_name}/FORCE/{basename}/sample_X00{x_c}_Y00{y_c}.prm", tif_file, preprocess_params["feature_order"])
 
                 cmd = f"sudo docker run -it -v {local_dir} -v {force_dir} davidfrantz/force " \
                       f"force-higher-level {temp_folder}/{project_name}/FORCE/{basename}/sample_X00{x_c}_Y00{y_c}.prm"

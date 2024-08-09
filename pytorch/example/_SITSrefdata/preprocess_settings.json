@@ -1,0 +1,31 @@
+{
+    "time_range": [
+        "1",
+        "10-01"
+    ],
+    "Interpolation": false,
+    "INT_DAY": 10,
+    "Sensors": "SEN2A SEN2B",
+    "Indices": "BLUE GREEN RED NIR SWIR1 SWIR2 RE1 RE2 RE3 BNIR",
+    "SPECTRAL_ADJUST": "FALSE",
+    "INTERPOLATE": "RBF",
+    "ABOVE_NOISE": 3,
+    "BELOW_NOISE": 1,
+    "NTHREAD_READ": 7,
+    "NTHREAD_COMPUTE": 7,
+    "NTHREAD_WRITE": 2,
+    "BLOCK_SIZE": 3000,
+    "start_doy_month": null,
+    "feature_order": [
+        "BLU",
+        "GRN",
+        "RED",
+        "NIR",
+        "SW1",
+        "SW2",
+        "RE1",
+        "RE2",
+        "RE3",
+        "BNR"
+    ]
+}

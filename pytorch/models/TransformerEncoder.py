@@ -63,7 +63,6 @@ class TransformerEncoder(ClassificationModel):
     def _logits(self, x, doy):
 
         # b,d,t - > b,t,d
-
         x = x.transpose(1,2)
 
         mask_x = x
@@ -87,7 +86,6 @@ class TransformerEncoder(ClassificationModel):
             src_pos_month = src_pos_month.cuda()
 
         enc_output, enc_slf_attn_list = self.encoder.forward(src_seq=x, src_pos=src_pos, src_pos_month=src_pos_month, mask_x = mask_x, return_attns=True)
-
         enc_output = self.outlayernorm(enc_output)
         ##########masking for padding
         mask = mask_x.sum(dim=-1) > 0
@@ -96,7 +94,6 @@ class TransformerEncoder(ClassificationModel):
         ##########masking for padding ende
 
         enc_output = self.tempmaxpool(enc_output.transpose(1, 2)).squeeze(-1)
-
 
         logits = self.outlinear(enc_output)
 

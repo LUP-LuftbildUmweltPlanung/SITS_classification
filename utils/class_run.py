@@ -19,203 +19,171 @@ from tqdm import tqdm
 import datetime
 from force.force_class_utils import force_class
 
-def force_sample(sampleref_param, preprocess_params, path_params):
-    force_class(preprocess_params, **path_params)
-    sample_to_ref_sepfiles(sampleref_param, preprocess_params, **path_params) # splits for single domain then goes to next
+def force_sample(preprocess_params):
 
-def sample_to_ref_onefile(force_dir,local_dir,force_skel,scripts_skel,temp_folder,mask_folder,
- proc_folder,data_folder,project_name,hold,response_lst,features_lst,response_out,features_out,bands,split_train):
-    o_folder = f"{os.path.dirname(response_out)}/onefile"
-    if not os.path.exists(o_folder):
-        print(f"output folder doesnt exist ... creating {o_folder}")
-        os.makedirs(o_folder)
-    # Merge txt files for features
-    df_features = pd.concat([pd.read_csv(f, sep=' ', header=None) for f in features_lst])
-    # Merge txt files for response
-    df_response = pd.concat([pd.read_csv(f, sep=' ', header=None) for f in response_lst])
+    if preprocess_params["years"] == None:
+        preprocess_params["years"] = [int(re.search(r'(\d{4})', os.path.basename(f)).group(1)) for f in preprocess_params["aois"] if re.search(r'(\d{4})', os.path.basename(f))]
+    time_range = preprocess_params["time_range"]
+    preprocess_params["date_ranges"] = [f"{year - int(time_range[0])}-{time_range[1]} {year}-{time_range[1]}" for year in preprocess_params["years"]]
 
-    features_out = f"{o_folder}/{os.path.basename(features_out)}"
-    response_out = f"{o_folder}/{os.path.basename(response_out)}"
-    features = df_features.replace(-9999, np.nan)
-    df_features.to_csv(features_out, sep=' ', header=False, index=False)
-    df_response.to_csv(response_out, sep=' ', header=False, index=False)
-    #df_coords.to_csv(coords_out, sep=' ', header=False, index=False)
-    ##interpolate for every band of every point
-    band_length = features.shape[1] // bands
-    for i in range(bands):
-        start = i * band_length
-        end = start + band_length
-        band = features.iloc[:, start:end]
-        band_interpolated = band.interpolate(axis=1, limit_direction='both')
-        features.iloc[:, start:end] = band_interpolated
-        # print(band)
-
-    # Add row ID as a new column
-    features['row_id'] = features.index
-
-    # Concatenate response and interpolated_features DataFrames
-    result = pd.concat([df_response, features['row_id'], features.drop(columns=['row_id'])], axis=1)
-    result.columns = range(result.shape[1])
-    result = result.loc[result[0] != -9999]
-
-    result.columns = result.columns.astype(str)
-
-    # Define the train percentage
-    train_perc = split_train
-
-    train_result, test_result = train_test_split(result, train_size=train_perc, random_state=42)
-    result = None
-
-    train_result = train_result.dropna()
-    test_result = test_result.dropna()
-
-    train_output = features_out.replace(".txt", "_train.csv")
-    test_output = features_out.replace(".txt", "_test.csv")
-
-    train_result.to_csv(train_output, index=False, header=False, sep=",")
-    test_result.to_csv(test_output, index=False, header=False, sep=",")
+    force_class(preprocess_params)
+    sample_to_ref_sepfiles(preprocess_params) # splits for single domain then goes to next
 
 # Function to move files
 def move_files(output_folder, file_list, dest_folder):
     for file in file_list:
         shutil.move(os.path.join(output_folder, file), os.path.join(dest_folder, file))
 
-def sample_to_ref_sepfiles(sampleref_param, preprocess_param, temp_folder, **kwargs):
+def sample_to_ref_sepfiles(preprocess_params, **kwargs):
 
-    sampleref_param["project_name"] = preprocess_param["project_name"]
+    output_folder = f'{preprocess_params["process_folder"]}/results/_SITSrefdata/{preprocess_params["project_name"]}'
+    temp_folder = preprocess_params['process_folder'] + "/temp"
+    preprocess_params["project_name"] = preprocess_params["project_name"]
 
-    bands = len(sampleref_param["band_names"])
+    bands = len(preprocess_params["feature_order"])
 
-    response_lst = sorted(glob.glob(f'{temp_folder}/{sampleref_param["project_name"]}/FORCE/*/tiles_tss/response*.txt'))
-    features_lst = sorted(glob.glob(f'{temp_folder}/{sampleref_param["project_name"]}/FORCE/*/tiles_tss/features*.txt'))
-    coordinates_lst = sorted(glob.glob(f'{temp_folder}/{sampleref_param["project_name"]}/FORCE/*/tiles_tss/coordinates*.txt'))
-
-    output_folder_sep = f'{sampleref_param["output_folder"]}/sepfiles'
+    output_folder_sep = f'{output_folder}/sepfiles'
     print(f"Output folder does not exist ... creating {output_folder_sep}")
     os.makedirs(output_folder_sep, exist_ok=True)
     try:
-        shutil.copy(f'{temp_folder}/{sampleref_param["project_name"]}/preprocess_settings.json', f'{sampleref_param["output_folder"]}/preprocess_settings.json')
+        shutil.copy(f'{temp_folder}/{preprocess_params["project_name"]}/preprocess_settings.json', f'{output_folder}/preprocess_settings.json')
     except:
         print("Couldnt Copy preprocess_settings.json")
 
+    # Initialize an empty DataFrame for storing coordinates
+    coordinates_list = []
     global_idx = 0
     nan_idx = 0
     # Process each file pair individually
-    f_len = len(features_lst)
 
-    # Initialize an empty DataFrame for storing coordinates with a global index
-    coordinates_df = pd.DataFrame(columns=['global_idx', 'x', 'y', 'aoi'])
-    coordinates_list = []
-    for idx, (feature_file, response_file, coordinates_file) in enumerate(zip(features_lst, response_lst, coordinates_lst)):
-        print(f"Processing Samples {idx+1} of {f_len}")
+    # Get the list of all FORCE directories
+    force_dirs = sorted(glob.glob(f'{temp_folder}/{preprocess_params["project_name"]}/FORCE/*'))
 
-        folder_year = os.path.basename(os.path.dirname(os.path.dirname(feature_file)))  # Move up two levels in the directory path
-        procyear_match = re.search(r'(\d{4})',folder_year)
-        assert procyear_match, "Error: Year not found in folder name"
-        procyear = int(procyear_match.group(1))
-        start_year = procyear - int(sampleref_param["start_doy_month"][0])
+    # Extract just the filenames from preprocess_params["points"]
+    point_filenames = [os.path.basename(point) for point in preprocess_params["aois"]]
 
+    # Create a mapping from points to years
+    points_years_mapping = dict(zip(point_filenames, preprocess_params["years"]))
+    for force_dir in force_dirs:
+        # Extract the folder name (basename)
+        folder_name = os.path.basename(force_dir)
 
-        feature = pd.read_csv(feature_file, sep=' ', header=None)
-        response = pd.read_csv(response_file, sep=' ', header=None)
-        coordinates = pd.read_csv(coordinates_file, sep=' ', header=None, names=['x', 'y'])
+        if folder_name not in points_years_mapping:
+            raise ValueError(f"Folder name '{folder_name}' does not have a corresponding year in preprocess_params.")
 
-        tile_folder = os.path.basename(response_file)[9:-4] # X*_Y* force tile folder
-        raster_path = glob.glob(f"{os.path.dirname(response_file)}/{tile_folder}/*.tif")[0]
-
-        #print(raster_path)
-        timesteps_per_band = int(feature.shape[1] / bands)
-
-        #with rasterio.open(raster_path) as src:
-            #timesteps = [src.descriptions[i] for i in range(src.count)]
-        with rasterio.open(raster_path) as src:
-            timesteps = [src.descriptions[i][:8] for i in range(src.count)]
+        # Get the corresponding year for the folder
+        related_year = points_years_mapping[folder_name]
+        # Construct the pattern to match the specific files within each FORCE directory
+        response_lst = sorted(glob.glob(os.path.join(force_dir, 'tiles_tss/response*.txt')))
+        features_lst = sorted(glob.glob(os.path.join(force_dir, 'tiles_tss/features*.txt')))
+        coordinates_lst = sorted(glob.glob(os.path.join(force_dir, 'tiles_tss/coordinates*.txt')))
 
 
-        feature = feature.replace(-9999, np.nan)
+        f_len = len(features_lst)
 
-        # Calculate the total number of items for tqdm to track progress accurately
-        total_items = len(feature)
-        with tqdm(total=total_items, desc="Processing Rows") as pbar:
-            for row_idx, (feat_row, resp_row, coord_row) in enumerate(zip(feature.iterrows(), response.iterrows(), coordinates.iterrows())):
-                feat_row = feat_row[1].values
-                resp_row = resp_row[1].values
-                coord_row_data = coord_row[1].values
 
-                if np.all(np.isnan(feat_row)):
-                    nan_idx += 1
-                    continue  # Skip the current iteration and move to the next array
+        for idx, (feature_file, response_file, coordinates_file) in enumerate(zip(features_lst, response_lst, coordinates_lst)):
+            print(f"Processing Samples {idx+1} of {f_len}")
 
-                pixel_data = np.reshape(feat_row, (bands, timesteps_per_band)).T
-                pixel_df = pd.DataFrame(pixel_data, columns=sampleref_param["band_names"], dtype=float)
+            feature = pd.read_csv(feature_file, sep=' ', header=None)
+            response = pd.read_csv(response_file, sep=' ', header=None)
+            coordinates = pd.read_csv(coordinates_file, sep=' ', header=None, names=['x', 'y'])
 
-                # Step 1: Extract year, month, day from 'doa' and calculate 'doy'
-                doa_dates = [datetime.datetime.strptime(str(doa), '%Y%m%d') for doa in timesteps[:timesteps_per_band]]
-                ###earliest_year = min(doa_dates, key=lambda x: x.year).year  # Step 2: Find the earliest year
-                start_date = datetime.datetime.strptime(f'{start_year}{sampleref_param["start_doy_month"][1]}', '%Y%m-%d')
-                #start_date = datetime.datetime.strptime(f'{2015}{sampleref_param["start_doy_month"][1]}','%Y%m-%d')
-                doy = [(doa_date - start_date).days + 1 for doa_date in doa_dates]  # Step 3: Calculate 'doy'
-                # New approach: Calculate doy for each date, resetting at the start of each year
-                #doy = []
-                # for doa_date in doa_dates:
-                #     year_start_date = datetime.datetime(doa_date.year, 1,1)  # First day of the year for the current date
-                #     doy_value = (doa_date - year_start_date).days + 1
-                #     doy.append(doy_value)
+            tile_folder = os.path.basename(response_file)[9:-4] # X*_Y* force tile folder
+            raster_path = glob.glob(f"{os.path.dirname(response_file)}/{tile_folder}/*.tif")[0]
 
-                pixel_df.insert(0, 'year', timesteps[:timesteps_per_band])
-                pixel_df.insert(1, 'doy', doy)  # Step 4: Insert 'doy' into DataFrame
-                pixel_df.insert(2, 'label', resp_row[0])
+            #print(raster_path)
+            timesteps_per_band = int(feature.shape[1] / bands)
 
-                # delete timesteps with only nan values
-                if sampleref_param["del_emptyTS"] == True:
-                    pixel_df = pixel_df.dropna(axis=0, how='all', subset=pixel_df.columns[3:])
-                else:
-                    if pixel_df[sampleref_param["band_names"]].isna().any().any():
-                        pixel_df[sampleref_param["band_names"]] = pixel_df[sampleref_param["band_names"]].interpolate(method='linear', limit_direction='both',axis=0)
 
-                output_file_path = os.path.join(output_folder_sep, f"{global_idx}.csv")
+            with rasterio.open(raster_path) as src:
+                timesteps = [src.descriptions[i][:8] for i in range(src.count)]
 
-                pixel_df.to_csv(output_file_path, index=False)
 
-                temp_df = {'global_idx': global_idx, 'x': coord_row_data[0], 'y': coord_row_data[1], 'aoi': folder_year}
-                coordinates_list.append(temp_df)
-                global_idx += 1
-                # Update the progress bar after each iteration
-                pbar.update(1)
+            feature = feature.replace(-9999, np.nan)
 
-        # Ensure that your train, valid, and test folders exist
-        train_folder = os.path.join(output_folder_sep, "train/csv")
-        test_folder = os.path.join(output_folder_sep, "test/csv")
+            # Calculate the total number of items for tqdm to track progress accurately
+            total_items = len(feature)
+            with tqdm(total=total_items, desc="Processing Rows") as pbar:
+                for row_idx, (feat_row, resp_row, coord_row) in enumerate(zip(feature.iterrows(), response.iterrows(), coordinates.iterrows())):
+                    feat_row = feat_row[1].values
+                    resp_row = resp_row[1].values
+                    coord_row_data = coord_row[1].values
 
-        os.makedirs(train_folder, exist_ok=True)
-        os.makedirs(test_folder, exist_ok=True)
+                    if np.all(np.isnan(feat_row)):
+                        nan_idx += 1
+                        continue  # Skip the current iteration and move to the next array
 
-        # Getting list of all .csv files in the output_folder
-        csv_files = [f for f in os.listdir(output_folder_sep) if f.endswith(".csv")]
+                    pixel_data = np.reshape(feat_row, (bands, timesteps_per_band)).T
+                    pixel_df = pd.DataFrame(pixel_data, columns=preprocess_params["feature_order"], dtype=float)
 
-        if sampleref_param["split_train"] <= 1:
-            # Shuffle the list to ensure random distribution of files
-            random.seed(sampleref_param["seed"])  # Set the seed before shuffling
-            random.shuffle(csv_files)
-            # Calculating split indices
-            num_files = len(csv_files)
-            train_idx = int(num_files * sampleref_param["split_train"])
-            # Splitting files
-            train_files = csv_files[:train_idx]
-            test_files = csv_files[train_idx:]
-            # Moving files
-            move_files(output_folder_sep, train_files, train_folder)
-            # move_files(valid_files, valid_folder)
-            move_files(output_folder_sep, test_files, test_folder)
-        else:
-            print(sampleref_param["split_train"])
-            if procyear == sampleref_param["split_train"]:
-                move_files(output_folder_sep, csv_files, test_folder)
+                    # Step 1: Extract year, month, day from 'doa' and calculate 'doy'
+                    doa_dates = [datetime.datetime.strptime(str(doa), '%Y%m%d') for doa in timesteps[:timesteps_per_band]]
+                    ###earliest_year = min(doa_dates, key=lambda x: x.year).year  # Step 2: Find the earliest year
+
+
+                    if preprocess_params["start_doy_month"] == None:
+                        start_year = related_year - int(preprocess_params["time_range"][0])
+                        start_date = datetime.datetime.strptime(f'{start_year}{preprocess_params["time_range"][1]}', '%Y%m-%d')
+                    else:
+                        start_date = datetime.datetime.strptime(f'{preprocess_params["start_doy_month"][0]}','%Y-%m-%d')
+
+                    doy = [(doa_date - start_date).days + 1 for doa_date in doa_dates]  # Step 3: Calculate 'doy'
+
+                    pixel_df.insert(0, 'year', timesteps[:timesteps_per_band])
+                    pixel_df.insert(1, 'doy', doy)  # Step 4: Insert 'doy' into DataFrame
+                    pixel_df.insert(2, 'label', resp_row[0])
+
+                    # delete timesteps with only nan values
+                    if preprocess_params["Interpolation"] == False:
+                        pixel_df = pixel_df.dropna(axis=0, how='all', subset=pixel_df.columns[3:])
+                    else:
+                        if pixel_df[preprocess_params["feature_order"]].isna().any().any():
+                            pixel_df[preprocess_params["feature_order"]] = pixel_df[preprocess_params["feature_order"]].interpolate(method='linear', limit_direction='both',axis=0)
+
+                    output_file_path = os.path.join(output_folder_sep, f"{global_idx}.csv")
+
+                    pixel_df.to_csv(output_file_path, index=False)
+
+                    temp_df = {'global_idx': global_idx, 'x': coord_row_data[0], 'y': coord_row_data[1], 'aoi': folder_name}
+                    coordinates_list.append(temp_df)
+                    global_idx += 1
+                    # Update the progress bar after each iteration
+                    pbar.update(1)
+
+            # Ensure that your train, valid, and test folders exist
+            train_folder = os.path.join(output_folder_sep, "train/csv")
+            test_folder = os.path.join(output_folder_sep, "test/csv")
+
+            os.makedirs(train_folder, exist_ok=True)
+            os.makedirs(test_folder, exist_ok=True)
+
+            # Getting list of all .csv files in the output_folder
+            csv_files = [f for f in os.listdir(output_folder_sep) if f.endswith(".csv")]
+
+            if preprocess_params["split_train"] <= 1:
+                # Shuffle the list to ensure random distribution of files
+                random.seed(preprocess_params["seed"])  # Set the seed before shuffling
+                random.shuffle(csv_files)
+                # Calculating split indices
+                num_files = len(csv_files)
+                train_idx = int(num_files * preprocess_params["split_train"])
+                # Splitting files
+                train_files = csv_files[:train_idx]
+                test_files = csv_files[train_idx:]
+                # Moving files
+                move_files(output_folder_sep, train_files, train_folder)
+                # move_files(valid_files, valid_folder)
+                move_files(output_folder_sep, test_files, test_folder)
             else:
-                move_files(output_folder_sep, csv_files, train_folder)
+                print(preprocess_params["split_train"])
+                if related_year == preprocess_params["split_train"]:
+                    move_files(output_folder_sep, csv_files, test_folder)
+                else:
+                    move_files(output_folder_sep, csv_files, train_folder)
 
     temp_df = pd.DataFrame(coordinates_list)
-    temp_df.to_csv(os.path.join(sampleref_param["output_folder"], f"meta.csv"), index=False)
+    temp_df.to_csv(os.path.join(output_folder, f"meta.csv"), index=False)
     print(f"Process finished - deleted {nan_idx} samples cause their were no values.")
 
 

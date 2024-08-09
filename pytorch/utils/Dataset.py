@@ -11,7 +11,7 @@ import pickle
 
 class Dataset(torch.utils.data.Dataset):
 
-    def __init__(self, root, classes, cache=True, seed=0, response = None, norm = None, bands = None, norm_response = None):
+    def __init__(self, root, classes, cache=True, seed=0, response = None, norm = None, norm_response = None):
 
         self.seed = seed
 
@@ -21,7 +21,6 @@ class Dataset(torch.utils.data.Dataset):
         torch.random.manual_seed(seed)
         self.norm = norm
         self.norm_r = norm_response
-        self.bands = bands
         self.root = root
         self.response = response
         self.trainids = os.path.join(self.root, "csv")
@@ -143,24 +142,24 @@ class Dataset(torch.utils.data.Dataset):
 
     def load(self, csv_file):
 
-        data = genfromtxt(csv_file, delimiter=',', skip_header=1,filling_values=0) ###was 9999 before!!
-        X = data[:, 3:] * self.norm
-        if self.norm_r == None:
-            nutzcodes = data[:, 2]
-        elif self.norm_r == "log10":
-            nutzcodes = np.log10(data[:, 2] + 1)
-        else:
-            nutzcodes = data[:, 2] * self.norm_r
+        # data = genfromtxt(csv_file, delimiter=',', skip_header=1,filling_values=0) ###was 9999 before!!
+        # X = data[:, 3:] * self.norm
+        # if self.norm_r == None:
+        #     nutzcodes = data[:, 2]
+        # elif self.norm_r == "log10":
+        #     nutzcodes = np.log10(data[:, 2] + 1)
+        # else:
+        #     nutzcodes = data[:, 2] * self.norm_r
+        #
+        # doy = data[:, 1]
 
-        doy = data[:, 1]
+        # Read the CSV file with numpy
+        data = genfromtxt(csv_file, delimiter=',', skip_header=1, filling_values=0)  # Fill missing values with 0
 
-        # # Read CSV file using pandas
-        # df = pd.read_csv(csv_file)  # header is assumed to be the first row by default
-        # # Fill missing values with 9999
-        # df.fillna(9999, inplace=True)
-        # # Convert selected data to numpy array and multiply by norm
-        # X = df.iloc[:, 3:].to_numpy() * self.norm
-        # nutzcodes = df.iloc[:, 2].to_numpy()
+        # Extract data without applying normalization
+        X = data[:, 3:]  # Features without normalization
+        nutzcodes = data[:, 2]  # Target values without normalization
+        doy = data[:, 1]  # Day of year
 
         return X, nutzcodes, doy
 
@@ -169,11 +168,35 @@ class Dataset(torch.utils.data.Dataset):
         return len(self.ids)
 
 
+    # def __getitem__(self, idx):
+    #     X, y, doy = self.X[idx], self.y[idx], self.doy[idx]
+    #     X_tensor = torch.from_numpy(X).float()
+    #     doy_tensor = torch.from_numpy(doy).float()  # Assuming doy is already a numpy array
+    #     y_tensor = torch.tensor(y, dtype=torch.long if self.response == "classification" else torch.float)
+    #
+    #     return X_tensor, y_tensor, doy_tensor
+
     def __getitem__(self, idx):
-        X, y, doy = self.X[idx], self.y[idx], self.doy[idx]
+        # Retrieve the raw data
+        X_raw = self.X[idx]
+        nutzcodes_raw = self.y[idx]
+        doy = self.doy[idx]
+
+        # Apply normalization to X
+        X = X_raw * self.norm if self.norm is not None else X_raw
+
+        #print(nutzcodes_raw)
+        # Apply normalization to nutzcodes
+        if self.norm_r is None:
+            nutzcodes = nutzcodes_raw
+        elif self.norm_r == "log10":
+            nutzcodes = np.log10(nutzcodes_raw + 1)
+        else:
+            nutzcodes = nutzcodes_raw * self.norm_r
+        #print(nutzcodes)
+        # Convert to PyTorch tensors
         X_tensor = torch.from_numpy(X).float()
         doy_tensor = torch.from_numpy(doy).float()  # Assuming doy is already a numpy array
-        y_tensor = torch.tensor(y, dtype=torch.long if self.response == "classification" else torch.float)
+        y_tensor = torch.tensor(nutzcodes, dtype=torch.long if self.response == "classification" else torch.float)
 
         return X_tensor, y_tensor, doy_tensor
-
