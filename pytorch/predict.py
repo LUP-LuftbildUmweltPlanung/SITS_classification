@@ -1,3 +1,10 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Aug 22 20:30:26 2023
+
+@author: benjaminstoeckigt
+"""
+
 from pytorch.train import getModel
 from pytorch.utils.hw_monitor import HWMonitor, disk_info, squeeze_hw_info
 from force.force_class_utils import force_class

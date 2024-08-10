@@ -2,7 +2,7 @@
 """
 Created on Tue Aug 22 20:24:28 2023
 
-@author: Admin
+@author: benjaminstoeckigt
 """
 
 import random

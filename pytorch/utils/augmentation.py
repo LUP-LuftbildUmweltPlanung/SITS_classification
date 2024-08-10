@@ -1,3 +1,10 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Aug 22 20:30:26 2023
+
+@author: benjaminstoeckigt
+"""
+
 from scipy.interpolate import CubicSpline, interp1d
 import matplotlib.pyplot as plt
 import time
