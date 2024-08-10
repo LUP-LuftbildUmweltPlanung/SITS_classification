@@ -41,6 +41,7 @@ Specify parameters within the _main_ scripts and execute them:
 
 To exclude FORCE for Training and use already existing Features & Responses take a look at the example files:
 ./pytorch/example/_SITSrefdata/...
+
 Note: preprocess_settings.json is used to carry uniform settings from training to prediction with a model
 
 <img src="img/flowchart.png" width="700" height="700" /> 
@@ -80,7 +81,7 @@ optuna-dashboard /path/to/optuna/config
 
 ### b) Prediction
 To make a prediction, simply define a project name and set the model path & shapefile for the study area.
-The prediction is based on the year in the shapefile of the study area.
+The prediction is based on the year in the shapefile of the study area or can be self defined. 
 
 Additionally, the following settings can be adjusted:
  
