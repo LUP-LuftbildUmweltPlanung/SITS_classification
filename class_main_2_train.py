@@ -11,18 +11,18 @@ from pytorch.train import train_init
 
 #FORCE
 preprocess_params = {
-    "project_name" : "test_updated_code", #Project Name that will be the name of output folder in temp & result subfolder
+    "project_name" : "class_vv_final", #Project Name that will be the name of output folder in temp & result subfolder
     "process_folder": "/uge_mount/FORCE/new_struc/process/", # Folder where Data and Results will be processed (will be created if not existing)
-    "aois" : glob.glob(f"/uge_mount/FORCE/new_struc/process/data/sits_class/test_points_*.shp"),## reference points shape as single file or file list ## should have YYYY in name
+    "aois" : glob.glob(f"/uge_mount/FORCE/new_struc/process/results/_SamplingPoints/uge_tcd_30m_equalized/*.shp"),## reference points shape as single file or file list ## should have YYYY in name
     "years": None,  ###Oberservation Year (last year of the timeseries), that should be defined for every Point Shapefile - if "None" Years will be extracted from aoi FileName YYYY
-    "time_range": ["1", "10-01"],  # [time_range in years, start and end MM-DD for timeseries]
-    "column_name": 'class', #column name for response variable in points
+    "time_range": ["1", "06-01"],  # [time_range in years, start and end MM-DD for timeseries]
+    "column_name": 'tcd', #column name for response variable in points
     "Interpolation" : False, ## Classification based on not interpolated Data just possible with Transformer
     "INT_DAY" : 10, ## interpolation time steps
     ###########################################
     ########Advanced Parameters################
     ###########################################
-    "force_dir": "/force_mount", # mount directory for FORCE-Datacube - should look like /force_mount/FORCE/C1/L2/..
+    "force_dir": "/force", # mount directory for FORCE-Datacube - should look like /force_mount/FORCE/C1/L2/..
     "hold": False,  # if True, FORCE cmd must be closed manually ## recommended for debugging FORCE
     "Sensors": "SEN2A SEN2B",  # LND04 LND05 LND07 LND08 LND09 SEN2A SEN2B,
     "Indices": "BLUE GREEN RED NIR SWIR1 SWIR2 RE1 RE2 RE3 BNIR", # Type: Character list. Valid values: {BLUE,GREEN,RED,NIR,SWIR1,SWIR2,RE1,RE2,RE3,BNIR,NDVI,EVI,NBR,NDTI,ARVI,SAVI,SARVI,TC-BRIGHT,TC-GREEN,TC-WET,TC-DI,NDBI,NDWI,MNDWI,NDMI,NDSI,SMA,kNDVI,NDRE1,NDRE2,CIre,NDVIre1,NDVIre2,NDVIre3,NDVIre1n,NDVIre2n,NDVIre3n,MSRre,MSRren,CCI},
@@ -51,7 +51,7 @@ args_train = {
     'checkpoint_every_n_epochs': 2,  # save checkpoints during training
     'ref_split': 0.8, # split ratio for training, other part is validation
     'model': "transformer",  # "tempcnn","rnn","msresnet","transformer", "rf"
-    'response': "regression_relu",  # "classification", "regression_relu" Use ReLU for 0 to infinity output, "regression_sigmoid" Use sigmoid for 0 to 1 output
+    'response': "regression",  # "classification" -> softmax, "regression" -> raw output, "regression_relu" -> 0 to infinity output, "regression_sigmoid" -> 0 to 1 output
     ###########################################
     ########Advanced Parameters################
     ###########################################
@@ -61,14 +61,15 @@ args_train = {
     'tune': False,  # Hyperparameter Tune? True: new folder next to the model will be created named optuna. You can easily visualize statistics with optuna-dashboard /path/to/optuna/config
     'study_name': "test2", # Name for Hyperparameter Trial
     'seed': 42,  # seed for batching and weight initialization
-    'max_seq_length': int(preprocess_params["time_range"][0])*366,
+    'max_seq_length': int(preprocess_params["time_range"][0])*367,
     'norm_factor_features': 1e-4,
-    'norm_factor_response': 10, #1e-2,#"log10", Response Scaling will be done after Caching, Should be None for Classification. Can be a Value e.g. 1e-3, None or "log10"
+    'norm_factor_response': "log10", #1e-2,#"log10", Response Scaling will be done after Caching, Should be None for Classification. Can be a Value e.g. 1e-3, None or "log10"
+    ## take cre for norm_factor_response and regression_relu / regression_sigmoid
 }
 
 if __name__ == '__main__':
 
-    force_sample(preprocess_params) # splits for single domain then goes to next
+    #force_sample(preprocess_params) # splits for single domain then goes to next
     train_init(args_train, preprocess_params)
 
 

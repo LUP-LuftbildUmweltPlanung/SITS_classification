@@ -9,14 +9,13 @@ from datetime import datetime, timedelta
 import numpy as np
 def convert_tensor_doy_to_month(doy_tensor):
     # Starting date is October 1, 2015
-    start_date = datetime(2015, 10, 1)
-
+    start_date = datetime(2015, 6, 1)
     # Define a function to convert scalar days to month index
     def day_to_month(day):
         if day == 0:  # Assuming '0' is used for padding and should remain 0
             return 0
         date = start_date + timedelta(days=int(day) - 1)
-        return date.month - 1  # Convert to 0-indexed month
+        return date.month  # Convert to 0-indexed month
 
     # Vectorize the function so it can be applied elementwise to a tensor
     v_day_to_month = np.vectorize(day_to_month)
@@ -28,7 +27,6 @@ def convert_tensor_doy_to_month(doy_tensor):
         doy_numpy = doy_tensor.cpu().numpy()
     month_numpy = v_day_to_month(doy_numpy)
     month_tensor = torch.from_numpy(month_numpy)
-
     return month_tensor
 
 class TransformerEncoder(ClassificationModel):
@@ -72,8 +70,7 @@ class TransformerEncoder(ClassificationModel):
         #x = self.inconv_bn(x)
         x = self.convlayernorm(x)
 
-        batchsize, seq, d = x.shape
-
+        #batchsize, seq, d = x.shape
         #print(seq)
         #src_pos = torch.arange(1, seq + 1, dtype=torch.long).expand(batchsize, seq)
         src_pos = doy.long()
@@ -108,9 +105,11 @@ class TransformerEncoder(ClassificationModel):
             logprobabilities = F.relu(logits)
         elif self.response == "regression_sigmoid":
             logprobabilities = torch.sigmoid(logits)
+        elif self.response == "regression":
+            logprobabilities = logits  # Return logits directly without any activation
         else:
             # If response is not one of the predefined types, raise an error
-            raise ValueError("Response type must be 'classification', 'regression_relu', or 'regression_sigmoid'.")
+            raise ValueError("Response type must be 'classification', 'regression', 'regression_relu', or 'regression_sigmoid'.")
 
         return logprobabilities, None, None, None
 

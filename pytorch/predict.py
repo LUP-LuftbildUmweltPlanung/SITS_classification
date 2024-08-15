@@ -94,7 +94,7 @@ def load_model(model_path,args):
     saved_state = torch.load(model_path)
     model_state_dict = saved_state["model_state"]
     args['nclasses'] = saved_state["nclasses"]
-    args['seqlength'] = 366*int(args["time_range"][0])
+    args['seqlength'] = 367*int(args["time_range"][0])
     args['input_dims'] = saved_state["ndims"]
     #print(f"Sequence Length: {args['seqlength']}")
     print(f"Input Dims: {args['input_dims']}")

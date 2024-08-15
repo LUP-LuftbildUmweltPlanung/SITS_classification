@@ -155,7 +155,6 @@ class Dataset(torch.utils.data.Dataset):
 
         # Read the CSV file with numpy
         data = genfromtxt(csv_file, delimiter=',', skip_header=1, filling_values=0)  # Fill missing values with 0
-
         # Extract data without applying normalization
         X = data[:, 3:]  # Features without normalization
         nutzcodes = data[:, 2]  # Target values without normalization

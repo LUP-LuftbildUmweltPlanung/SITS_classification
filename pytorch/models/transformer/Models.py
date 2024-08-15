@@ -47,7 +47,7 @@ def get_sinusoid_encoding_table_month(d_hid, padding_idx=None):
         return [cal_month_angle(month, i) for i in range(d_hid)]
 
     # Create a table with 12 positions (for 12 months)
-    month_table = np.array([get_month_angle_vec(month) for month in range(12)])
+    month_table = np.array([get_month_angle_vec(month) for month in range(13)])
 
     # Apply sin to even indices and cos to odd indices
     month_table[:, 0::2] = np.sin(month_table[:, 0::2])

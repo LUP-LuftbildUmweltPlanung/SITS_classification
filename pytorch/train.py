@@ -32,7 +32,7 @@ import optuna
 from torch.nn.utils.rnn import pad_sequence
 from pytorch.utils.augmentation import time_warp, plot, apply_scaling, apply_augmentation
 def prepare_dataset(args):
-    assert args['response'] in ["regression_sigmoid", "regression_relu", "classification"]
+    assert args['response'] in ["regression_sigmoid", "regression", "regression_relu", "classification"]
 
     if args['response'].startswith("regression"):
         args['classes_lst'] = [0]
@@ -47,18 +47,26 @@ def prepare_dataset(args):
 
     return ref_dataset
 
-def collate_fn(batch, p, plotting):
+def collate_fn(batch, p, plotting, time_range):
     X_batch, y_batch, doy_batch = zip(*batch)
     # Apply augmentation with probability p to each item in the batch
     X_batch_augmented = []
     doy_batch_augmented = []
     for X, doy in zip(X_batch, doy_batch):
-        X_aug, doy_aug = apply_augmentation(X, doy, p, plotting)
+        X_aug, doy_aug = apply_augmentation(X, doy, p, plotting, time_range)
         X_batch_augmented.append(X_aug)
         doy_batch_augmented.append(doy_aug)
 
     X_padded = pad_sequence(X_batch_augmented, batch_first=True, padding_value=0)
     doy_padded = pad_sequence(doy_batch_augmented, batch_first=True, padding_value=0)
+    y_padded = torch.stack(y_batch)
+    return X_padded, y_padded, doy_padded
+
+def collate_fn_notransform(batch, p, plotting):
+    X_batch, y_batch, doy_batch = zip(*batch)
+
+    X_padded = pad_sequence(X_batch, batch_first=True, padding_value=0)
+    doy_padded = pad_sequence(doy_batch, batch_first=True, padding_value=0)
     y_padded = torch.stack(y_batch)
     return X_padded, y_padded, doy_padded
 
@@ -97,14 +105,16 @@ def train(trial,args_train,ref_dataset):
 
     p = args_train['augmentation']
     plotting = args_train['augmentation_plot']
+    time_range = args_train['time_range'][1]
 
     traindataloader = torch.utils.data.DataLoader(dataset=train_dataset, sampler=RandomSampler(train_dataset),
                                                   batch_size=args_train['batchsize'], num_workers=args_train['workers'],
-                                                  collate_fn=lambda batch: collate_fn(batch, p, plotting))
+                                                  collate_fn=lambda batch: collate_fn(batch, p, plotting, time_range))
 
     validdataloader = torch.utils.data.DataLoader(dataset=valid_dataset, sampler=SequentialSampler(valid_dataset),
                                                   batch_size=args_train['batchsize'], num_workers=args_train['workers'],
-                                                  collate_fn=lambda batch: collate_fn(batch, p=0, plotting=None))
+                                                  collate_fn=lambda batch: collate_fn_notransform(batch, p=0, plotting=None))
+
 
 
     print(f"Training Sample Size: {len(traindataloader.dataset)}")
@@ -199,6 +209,7 @@ def getModel(args):
 
 def train_init(args_train, preprocess_params):
 
+    args_train["time_range"] = preprocess_params["time_range"] # relevant for relative yearls doy seperation for augmentations
     args_train["workers"] = 10  # number of CPU workers to load the next batch
 
     args_train["data_root"] = f'{preprocess_params["process_folder"]}/results/_SITSrefdata/{preprocess_params["project_name"]}/sepfiles/train/' # folder with CSV or cached NPY folder

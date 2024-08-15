@@ -54,6 +54,7 @@ def sample_to_ref_sepfiles(preprocess_params, **kwargs):
     coordinates_list = []
     global_idx = 0
     nan_idx = 0
+    singlets_idx = 0
     # Process each file pair individually
 
     # Get the list of all FORCE directories
@@ -113,6 +114,11 @@ def sample_to_ref_sepfiles(preprocess_params, **kwargs):
                     if np.all(np.isnan(feat_row)):
                         nan_idx += 1
                         continue  # Skip the current iteration and move to the next array
+
+                    # If feat_row corresponds to just one timestep, skip the iteration
+                    if sum(~np.isnan(feat_row)) == bands:
+                        singlets_idx += 1
+                        continue
 
                     pixel_data = np.reshape(feat_row, (bands, timesteps_per_band)).T
                     pixel_df = pd.DataFrame(pixel_data, columns=preprocess_params["feature_order"], dtype=float)
@@ -184,7 +190,7 @@ def sample_to_ref_sepfiles(preprocess_params, **kwargs):
 
     temp_df = pd.DataFrame(coordinates_list)
     temp_df.to_csv(os.path.join(output_folder, f"meta.csv"), index=False)
-    print(f"Process finished - deleted {nan_idx} samples cause their were no values.")
+    print(f"Process finished - deleted {nan_idx} samples cause their were no values & {singlets_idx} samples cause their was just 1 timestep")
 
 
 
