@@ -46,7 +46,7 @@ def predict(args_predict):
     args_predict["time_range"] = preprocess_params["time_range"]
     args_predict["feature_order"] = preprocess_params["feature_order"]
 
-    #force_class(preprocess_params)
+    force_class(preprocess_params)
     predict_init(args_predict)
 
 
