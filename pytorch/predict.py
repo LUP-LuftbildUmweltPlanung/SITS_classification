@@ -46,7 +46,7 @@ def predict(args_predict):
     args_predict["time_range"] = preprocess_params["time_range"]
     args_predict["feature_order"] = preprocess_params["feature_order"]
 
-    force_class(preprocess_params)
+    #force_class(preprocess_params)
     predict_init(args_predict)
 
 
@@ -279,7 +279,7 @@ def predict_raster(args_predict):
 
     hyp = load_hyperparametersplus(os.path.dirname(args_predict["model_path"]))
     args_predict.update(hyp)
-
+    args_predict['store'] = os.path.dirname(args_predict['model_path'])
     # create hw_monitor output dir if it doesn't exist
     drive_name = ["sdb1"]
     Path(args_predict['store'] + '/' + args_predict['model'] + '/hw_monitor').mkdir(parents=True, exist_ok=True)

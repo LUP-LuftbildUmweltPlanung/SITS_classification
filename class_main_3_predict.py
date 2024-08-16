@@ -13,10 +13,10 @@ from pytorch.predict import predict
 
 
 args_predict = {
-    'project_name': "ogi_tcd",
-    "process_folder": "/uge_mount/FORCE/new_struc/process/",
-    'model_path': '/uge_mount/FORCE/new_struc/process/results/_SITSModels/class_tcd_final/transformer/model_e52.pth', # Path to Model
-    'aois': glob.glob(f"/uge_mount/FORCE/new_struc/process/data/aois_test_class_ogi/*.shp"), # aois can be path or list. Path for Force Tile folder or list // process structure and shapefiles must be correct
+    'project_name': "prediction_VV_2020",
+    "process_folder": "/nne_mount/sits_framework/process",
+    'model_path': '/nne_mount/sits_framework/process/data/Models/vv_transformer_1year/model_e46.pth', # Path to Model
+    'aois': glob.glob(f"/nne_mount/sits_framework/process/data/Germany_AOIs/germany_2020.shp"), # aois can be path or list. Path for Force Tile folder or list // process structure and shapefiles must be correct
     #'aois': None,
     'years': None, ###Oberservation Year (last year of the timeseries), that should be defined for every AOI Shapefile - if "None" Years will be extracted from aoi FileName YYYY
     #'reference_folder' : '/uge_mount/FORCE/new_struc/process/result/_SITSrefdata/envilink_vv_1years/',
