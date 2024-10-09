@@ -377,6 +377,7 @@ def predict_raster(args_predict):
     args_predict.update(hyp)
     if args_predict["thermal_time_prediction"] != None and args_predict["thermal_time"] != None:
         print("Applying Transformer Model with Thermal Positional Encoding!")
+    args_predict['store'] = os.path.dirname(args_predict['model_path'])
     # create hw_monitor output dir if it doesn't exist
     drive_name = ["sdb1"]
     Path(args_predict['store'] + '/' + args_predict['model'] + '/hw_monitor').mkdir(parents=True, exist_ok=True)
