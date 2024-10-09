@@ -155,7 +155,7 @@ def day_shifting(doy, time_range, shift_range=16):
 
     return shifted_doy
 
-def plot(X, X_aug, doy, doy_aug, thermal, thermal_aug, method, band):
+def plot(X, X_aug, doy, doy_aug, method, band):
     # Modified to handle plotting of DOY adjustments
     plt.figure(figsize=(10, 5))
     plt.plot(doy.numpy(), X.numpy()[:, band-1], 'o-', label='Original X', marker='o')
@@ -166,21 +166,9 @@ def plot(X, X_aug, doy, doy_aug, thermal, thermal_aug, method, band):
     plt.legend()
     plt.grid(True)
     plt.show()
-
-    if thermal_aug is not None:
-        plt.figure(figsize=(10, 5))
-        plt.plot(thermal.numpy(), X.numpy()[:, band - 1], 'o-', label='Original X', marker='o')
-        plt.plot(thermal_aug.numpy(), X_aug.numpy()[:, band - 1], 'o', linestyle='',label=f'Augmented X ({method}); Band {band}', marker='s')
-        plt.xlabel('Thermal Time')
-        plt.ylabel('Values')
-        plt.title('Comparison of Original and Augmented Data')
-        plt.legend()
-        plt.grid(True)
-        plt.show()
-
     time.sleep(1000)  # Note: Consider removing or decreasing this sleep time in production
 
-def zero_out_data(X, doy, thermal = None, percentage=5):
+def zero_out_data(X, doy, percentage=5):
     """
     Sets a random percentage of X values and the corresponding doy values to zero.
 
@@ -204,22 +192,14 @@ def zero_out_data(X, doy, thermal = None, percentage=5):
 
     X_zeroed = X.clone()
     doy_zeroed = doy.clone()
-    if thermal is not None:
-        thermal_zeroed = thermal.clone()
-    else:
-        thermal_zeroed = None
 
     # Set selected indices to zero
     X_zeroed[zero_indices, :] = 0
     doy_zeroed[zero_indices] = 0
 
-    if thermal_zeroed is not None:
-        thermal_zeroed[zero_indices] = 0
-        return X_zeroed, doy_zeroed, thermal_zeroed
-    else:
-        return X_zeroed, doy_zeroed
+    return X_zeroed, doy_zeroed
 
-def apply_augmentation(X, doy, thermal, p, plotting, time_range):
+def apply_augmentation(X, doy, p, plotting, time_range):
     """
     Applies augmentation based on a random choice among:
     1. A single augmentation,
@@ -242,15 +222,10 @@ def apply_augmentation(X, doy, thermal, p, plotting, time_range):
     """
     doy_aug = doy.clone()  # Start with a clone to not alter the original DOY
     X_aug = X.clone()  # Start with a clone to not alter the original X
-    if thermal is not None:
-        thermal_aug = thermal.clone()
-    else:
-        thermal_aug = None
 
     if torch.rand(1).item() < p:
         # Choose augmentation pattern with equal probability
         augmentation_patterns = ['single', 'double', 'triple']
-        #augmentation_patterns = ['single']
         selected_pattern = np.random.choice(augmentation_patterns)
 
         if selected_pattern == 'single':
@@ -263,11 +238,8 @@ def apply_augmentation(X, doy, thermal, p, plotting, time_range):
                 doy_aug = year_shifting(doy_aug, time_range, shift_range=16)
                 method = 'day shifting'
             else:
-                percentage_to_zero = np.random.randint(5, 40)
-                if thermal_aug is None:
-                    X_aug, doy_aug = zero_out_data(X_aug, doy_aug, percentage=percentage_to_zero)
-                else:
-                    X_aug, doy_aug, thermal_aug = zero_out_data(X_aug, doy_aug, thermal_aug, percentage=percentage_to_zero)
+                percentage_to_zero = np.random.randint(5, 71)
+                X_aug, doy_aug = zero_out_data(X_aug, doy_aug, percentage=percentage_to_zero, )
                 method = f'zero out {percentage_to_zero}%'
 
         elif selected_pattern == 'double':
@@ -284,10 +256,7 @@ def apply_augmentation(X, doy, thermal, p, plotting, time_range):
                     methods.append('day shifting')
                 else:
                     percentage_to_zero = np.random.randint(5, 71)
-                    if thermal_aug is None:
-                        X_aug, doy_aug = zero_out_data(X_aug, doy_aug, percentage=percentage_to_zero)
-                    else:
-                        X_aug, doy_aug, thermal_aug = zero_out_data(X_aug, doy_aug, thermal_aug, percentage=percentage_to_zero)
+                    X_aug, doy_aug = zero_out_data(X_aug, doy_aug, percentage=percentage_to_zero)
                     methods.append(f'zero out {percentage_to_zero}%')
             method = ' & '.join(methods)
 
@@ -296,16 +265,13 @@ def apply_augmentation(X, doy, thermal, p, plotting, time_range):
             percentage_to_zero = np.random.randint(5, 71)
             X_aug = apply_scaling(X_aug, doy_aug, time_range, sigma=0.15)
             doy_aug = year_shifting(doy_aug, time_range, shift_range=16)
-            if thermal_aug is None:
-                X_aug, doy_aug = zero_out_data(X_aug, doy_aug, percentage=percentage_to_zero)
-            else:
-                X_aug, doy_aug, thermal_aug = zero_out_data(X_aug, doy_aug, thermal_aug, percentage=percentage_to_zero)
+            X_aug, doy_aug = zero_out_data(X_aug, doy_aug, percentage=percentage_to_zero)
             method = 'scaling & day shifting & zero out'
 
     else:
         method = 'none'  # No augmentation applied
 
     if plotting is not None:
-        plot(X, X_aug, doy, doy_aug, thermal, thermal_aug, method, band=plotting)
+        plot(X, X_aug, doy, doy_aug, method, band=plotting)
 
-    return X_aug, doy_aug, thermal_aug
+    return X_aug, doy_aug

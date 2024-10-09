@@ -43,32 +43,55 @@ def prepare_dataset(args):
     if args['seed'] is not None:
         torch.random.manual_seed(args['seed'])
 
-    ref_dataset = Dataset(root=args['data_root'], classes=args['classes_lst'], seed=args['seed'], response=args['response'], norm=args['norm_factor_features'], norm_response = args['norm_factor_response'])
+    ref_dataset = Dataset(root=args['data_root'], classes=args['classes_lst'], seed=args['seed'], response=args['response'],
+                          norm=args['norm_factor_features'], norm_response = args['norm_factor_response'], thermal = args["thermal_time"])
 
     return ref_dataset
 
-def collate_fn(batch, p, plotting, time_range):
-    X_batch, y_batch, doy_batch = zip(*batch)
+def collate_fn(batch, p, plotting, time_range, include_thermal):
+
+    X_batch, y_batch, doy_batch, thermal_batch = zip(*batch)
     # Apply augmentation with probability p to each item in the batch
+    thermal_batch_augmented = []
     X_batch_augmented = []
     doy_batch_augmented = []
-    for X, doy in zip(X_batch, doy_batch):
-        X_aug, doy_aug = apply_augmentation(X, doy, p, plotting, time_range)
+
+    # Check if thermal_batch is None, if so, create a list of None values with the same length as X_batch
+    if thermal_batch is None:
+        thermal_batch = [None] * len(X_batch)
+
+    for X, doy, thermal in zip(X_batch, doy_batch, thermal_batch):
+        X_aug, doy_aug, thermal_aug = apply_augmentation(X, doy, thermal, p, plotting, time_range)
+        if include_thermal:
+            thermal_batch_augmented.append(thermal_aug)
         X_batch_augmented.append(X_aug)
         doy_batch_augmented.append(doy_aug)
+
 
     X_padded = pad_sequence(X_batch_augmented, batch_first=True, padding_value=0)
     doy_padded = pad_sequence(doy_batch_augmented, batch_first=True, padding_value=0)
     y_padded = torch.stack(y_batch)
-    return X_padded, y_padded, doy_padded
 
-def collate_fn_notransform(batch, p, plotting):
-    X_batch, y_batch, doy_batch = zip(*batch)
+    if include_thermal:
+        thermal_padded = pad_sequence(thermal_batch_augmented, batch_first=True, padding_value=0)
+        return X_padded, y_padded, doy_padded, thermal_padded
+    else:
+        return X_padded, y_padded, doy_padded, None
+
+def collate_fn_notransform(batch, include_thermal, p, plotting):
+
+    X_batch, y_batch, doy_batch, thermal_batch = zip(*batch)
 
     X_padded = pad_sequence(X_batch, batch_first=True, padding_value=0)
     doy_padded = pad_sequence(doy_batch, batch_first=True, padding_value=0)
     y_padded = torch.stack(y_batch)
-    return X_padded, y_padded, doy_padded
+
+    if include_thermal:
+        thermal_padded = pad_sequence(thermal_batch, batch_first=True, padding_value=0)
+        return X_padded, y_padded, doy_padded, thermal_padded
+    else:
+        return X_padded, y_padded, doy_padded, None
+
 
 def train(trial,args_train,ref_dataset):
     # add the splitting part here
@@ -107,13 +130,15 @@ def train(trial,args_train,ref_dataset):
     plotting = args_train['augmentation_plot']
     time_range = args_train['time_range'][1]
 
+    include_thermal = args_train['thermal_time'] is not None
+
     traindataloader = torch.utils.data.DataLoader(dataset=train_dataset, sampler=RandomSampler(train_dataset),
                                                   batch_size=args_train['batchsize'], num_workers=args_train['workers'],
-                                                  collate_fn=lambda batch: collate_fn(batch, p, plotting, time_range))
+                                                  collate_fn=lambda batch: collate_fn(batch, p, plotting, time_range, include_thermal))
 
     validdataloader = torch.utils.data.DataLoader(dataset=valid_dataset, sampler=SequentialSampler(valid_dataset),
                                                   batch_size=args_train['batchsize'], num_workers=args_train['workers'],
-                                                  collate_fn=lambda batch: collate_fn_notransform(batch, p=0, plotting=None))
+                                                  collate_fn=lambda batch: collate_fn_notransform(batch, include_thermal, p=0, plotting=None))
 
 
 
@@ -133,6 +158,9 @@ def train(trial,args_train,ref_dataset):
     print(f"Input Dims: {args_train['input_dims']}")
     print(f"Prediction Classes: {len(args_train['classes_lst'])}")
     print(f"Data Augmentation: {p * 100} % Training Data will be augmented (Single, Double or Triple (30/30/30) of Annual Scaling / DOY Day Shifting / Zero Out")
+    if include_thermal:
+        print("Applying Transformer Model with Thermal Positional Encoding instead of Calender Positional Encoding!")
+
     model = getModel(args_train)
 
     store = os.path.join(args_train['store'],args_train['model'])
@@ -214,6 +242,8 @@ def train_init(args_train, preprocess_params):
 
     args_train["data_root"] = f'{preprocess_params["process_folder"]}/results/_SITSrefdata/{preprocess_params["project_name"]}/sepfiles/train/' # folder with CSV or cached NPY folder
     args_train["store"] = f'{preprocess_params["process_folder"]}/results/_SITSModels/{preprocess_params["project_name"]}/'  # Store Model Data Path
+
+    args_train["thermal_time"] = preprocess_params["thermal_time"]
     # create hw_monitor output dir if it doesn't exist
     Path(args_train['store'] + '/' + args_train['model'] + '/hw_monitor').mkdir(parents=True, exist_ok=True)
     drive_name = ["sdb1"]

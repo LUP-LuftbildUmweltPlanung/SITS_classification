@@ -13,16 +13,17 @@ from pytorch.predict import predict
 
 
 args_predict = {
-    'project_name': "ogi_tcd",
+    'project_name': "leipzig_thermal_smallaoi",
     "process_folder": "/uge_mount/FORCE/new_struc/process/",
-    'model_path': '/uge_mount/FORCE/new_struc/process/results/_SITSModels/class_tcd_final/transformer/model_e52.pth', # Path to Model
-    'aois': glob.glob(f"/uge_mount/FORCE/new_struc/process/data/aois_test_class_ogi/*.shp"), # aois can be path or list. Path for Force Tile folder or list // process structure and shapefiles must be correct
+    'model_path': '/uge_mount/FORCE/new_struc/process/results/_SITSModels/class_tcd_final_Thermal_3y/transformer/model_e46.pth', # Path to Model
+    'aois': glob.glob("/uge_mount/FORCE/new_struc/process/data/gdd/Leipzig*.shp"), # aois can be path or list. Path for Force Tile folder or list // process structure and shapefiles must be correct
     #'aois': None,
     'years': None, ###Oberservation Year (last year of the timeseries), that should be defined for every AOI Shapefile - if "None" Years will be extracted from aoi FileName YYYY
-    #'reference_folder' : '/uge_mount/FORCE/new_struc/process/result/_SITSrefdata/envilink_vv_1years/',
+    #'reference_folder' : '/uge_mount/FORCE/new_struc/process/results/_SITSrefdata/class_vv_final/',
     'reference_folder' : None, #Set Path if you want to predict the Test CSV File /path/to/_SITSrefdata/projectname
     'probability' : False, # just gets recognized if classification
     'chunksize': 6000,  # 5years ts -> 2000
+    'thermal_time_prediction': None, #"/uge_mount/FORCE/new_struc/process/data/gdd/concatenated_gdd_start2015_3035.tif", #set None if not using
     'force_dir': "/force",
     }
 

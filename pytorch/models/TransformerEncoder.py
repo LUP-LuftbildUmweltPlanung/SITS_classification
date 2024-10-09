@@ -58,7 +58,7 @@ class TransformerEncoder(ClassificationModel):
         #self.tempmaxpool = nn.MaxPool1d(int(len_max_seq))
 
 
-    def _logits(self, x, doy):
+    def _logits(self, x, doy, thermal = None):
 
         # b,d,t - > b,t,d
         x = x.transpose(1,2)
@@ -75,6 +75,10 @@ class TransformerEncoder(ClassificationModel):
         #src_pos = torch.arange(1, seq + 1, dtype=torch.long).expand(batchsize, seq)
         src_pos = doy.long()
 
+        if thermal is not None:
+            thermal = thermal.long()
+            thermal = thermal.cuda()
+
         doy_m = convert_tensor_doy_to_month(doy)
         src_pos_month = doy_m.long()
 
@@ -82,7 +86,7 @@ class TransformerEncoder(ClassificationModel):
             src_pos = src_pos.cuda()
             src_pos_month = src_pos_month.cuda()
 
-        enc_output, enc_slf_attn_list = self.encoder.forward(src_seq=x, src_pos=src_pos, src_pos_month=src_pos_month, mask_x = mask_x, return_attns=True)
+        enc_output, enc_slf_attn_list = self.encoder.forward(src_seq=x, src_pos=src_pos, src_pos_month=src_pos_month, src_thermal = thermal, mask_x = mask_x, return_attns=True)
         enc_output = self.outlayernorm(enc_output)
         ##########masking for padding
         mask = mask_x.sum(dim=-1) > 0
@@ -97,8 +101,8 @@ class TransformerEncoder(ClassificationModel):
 
         return logits, None, None, None
 
-    def forward(self, x, doy):
-        logits, *_ = self._logits(x, doy)
+    def forward(self, x, doy, thermal = None):
+        logits, *_ = self._logits(x, doy, thermal)
         if self.response == "classification":
             logprobabilities = F.log_softmax(logits, dim=-1)
         elif self.response == "regression_relu":

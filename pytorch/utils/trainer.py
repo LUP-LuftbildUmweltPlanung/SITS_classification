@@ -188,14 +188,15 @@ class Trainer():
         for iteration, data in progress_bar:
 
             self.optimizer.zero_grad()
-            inputs, targets, doy = data
+            inputs, targets, doy, thermal = data
 
             if torch.cuda.is_available():
                 inputs = inputs.cuda()
                 targets = targets.cuda()
 
-
-            if self.model.__class__.__name__ == "TransformerEncoder":
+            if self.model.__class__.__name__ == "TransformerEncoder" and thermal is not None:
+                logprobabilities, deltas, pts, budget = self.model.forward(inputs.transpose(1, 2), doy, thermal)
+            elif self.model.__class__.__name__ == "TransformerEncoder":
                 logprobabilities, deltas, pts, budget = self.model.forward(inputs.transpose(1, 2), doy)
             else:
                 logprobabilities, deltas, pts, budget = self.model.forward(inputs.transpose(1,2))
@@ -262,13 +263,15 @@ class Trainer():
         with torch.no_grad():
             for iteration, data in enumerate(dataloader):
 
-                inputs, targets, doy = data
+                inputs, targets, doy, thermal = data
 
                 if torch.cuda.is_available():
                     inputs = inputs.cuda()
                     targets = targets.cuda()
 
-                if self.model.__class__.__name__ == "TransformerEncoder":
+                if self.model.__class__.__name__ == "TransformerEncoder" and thermal is not None:
+                    logprobabilities, deltas, pts, budget = self.model.forward(inputs.transpose(1, 2), doy, thermal)
+                elif self.model.__class__.__name__ == "TransformerEncoder":
                     logprobabilities, deltas, pts, budget = self.model.forward(inputs.transpose(1, 2), doy)
                 else:
                     logprobabilities, deltas, pts, budget = self.model.forward(inputs.transpose(1, 2))

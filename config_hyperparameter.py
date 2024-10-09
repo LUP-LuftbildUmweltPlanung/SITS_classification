@@ -19,7 +19,7 @@ def hyperparameter_config(model):
             "n_heads": 5,
             "n_layers": 4,
             "learning_rate": 0.0010913,
-            "dropout": 0.0,
+            "dropout": 0,
             "weight_decay": 0.000306,
             "warmup": 1000,
             'partition': 100,  # partition of whole reference data
