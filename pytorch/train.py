@@ -155,7 +155,7 @@ def train(trial,args_train):
     print(f"Prediction Classes: {len(args_train['classes_lst'])}")
     print(f"Data Augmentation: {p * 100} % Training Data will be augmented (Single, Double or Triple (30/30/30) of Annual Scaling / DOY Day Shifting / Zero Out")
     if include_thermal:
-        print(f"Applying Transformer Model with Thermal Positional Encoding!\n-> GDD Path:{include_thermal}")
+        print(f"Applying Transformer Model with Thermal Positional Encoding!\n-> GDD Path:{args_train['thermal_time']}")
     else:
         print("Applying Transformer Model with Calendar Positional Encoding!")
 
