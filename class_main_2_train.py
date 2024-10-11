@@ -47,7 +47,7 @@ preprocess_params = {
 
 
 args_train = {
-    'epochs': 140,  # number of training epochs
+    'epochs': 2,  # number of training epochs
     'valid_every_n_epochs': 2,  # skip some valid epochs for faster overall training
     'checkpoint_every_n_epochs': 2,  # save checkpoints during training
     'ref_split': 0.8, # split ratio for training, other part is validation
@@ -60,17 +60,14 @@ args_train = {
     'augmentation_plot': None, #Plotting for Augmentations; either None or BandNumber [None, 1, 2, 3, 4, 5, ...]
     'classes_lst': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], #classification classes
     'tune': False,  # Hyperparameter Tune? True: new folder next to the model will be created named optuna. You can easily visualize statistics with optuna-dashboard /path/to/optuna/config
-    'study_name': "test2", # Name for Hyperparameter Trial
+    'study_name': "Tune_TCD_3Years", # Name for Hyperparameter Trial
     'seed': 42,  # seed for batching and weight initialization
     'max_seq_length': int(preprocess_params["time_range"][0])*367,
-    'norm_factor_features': 1e-4,
-    'norm_factor_response': 10, #"log10", #Response Scaling will be done after Caching, Should be None for Classification. Can be a Value e.g. 1e-3, None or "log10"
-    ## take cre for norm_factor_response and regression_relu / regression_sigmoid
 }
 
 if __name__ == '__main__':
 
-    force_sample(preprocess_params) # splits for single domain then goes to next
+    #force_sample(preprocess_params) # splits for single domain then goes to next
     train_init(args_train, preprocess_params)
 
 

@@ -27,9 +27,11 @@ from rasterio.warp import reproject, Resampling
 from rasterio.mask import mask
 
 def predict(args_predict):
-
     preprocess_params = load_preprocess_settings(os.path.dirname(args_predict["model_path"]))
     preprocess_params["aois"] = args_predict["aois"]
+
+    assert (preprocess_params["thermal_time"] is None and args_predict["thermal_time_prediction"] is None) or \
+           (preprocess_params["thermal_time"] is not None and args_predict["thermal_time_prediction"] is not None), "Different Positional Encoding used for Training and Prediction"
 
     if args_predict["years"] == None:
         preprocess_params["years"] = [int(re.search(r'(\d{4})', os.path.basename(f)).group(1)) for f in preprocess_params["aois"] if re.search(r'(\d{4})', os.path.basename(f))]
@@ -246,19 +248,26 @@ def predict_singlegrid(model, tiles, args_predict):
     month = int(args_predict['time_range'][1].split('-')[0])
     day = int(args_predict['time_range'][1].split('-')[1])
     thermal_dataset = args_predict["thermal_time_prediction"]
-    data, doy_single, thermal = read_tif_files(tiles, order, year, month, day, thermal_dataset)
-    # Stack the bands and perform initial reshape in NumPy
-    data_thermal = np.stack(thermal, axis=0)
-    data = np.stack(data, axis=1)
-    # Reshape data for PyTorch [sequence length, number of bands, height, width]
-    seq_len, num_bands, height, width = data.shape
-    XY = height * width
-    data_thermal = data_thermal.reshape(seq_len, XY)
+    if thermal_dataset is not None:
+        data, doy_single, thermal = read_tif_files(tiles, order, year, month, day, thermal_dataset)
+        data_thermal = np.stack(thermal, axis=0)
+        data = np.stack(data, axis=1)
+        # Reshape data for PyTorch [sequence length, number of bands, height, width]
+        seq_len, num_bands, height, width = data.shape
+        XY = height * width
+        data_thermal = data_thermal.reshape(seq_len, XY)
+        data_thermal = np.transpose(data_thermal, (1, 0))
+    else:
+        # Stack the bands and perform initial reshape in NumPy
+        data, doy_single, thermal = read_tif_files(tiles, order, year, month, day, thermal_dataset)
+        data = np.stack(data, axis=1)
+        # Reshape data for PyTorch [sequence length, number of bands, height, width]
+        seq_len, num_bands, height, width = data.shape
+        XY = height * width
     data = data.reshape(seq_len, num_bands, XY)
-
     # Reorder dimensions for PyTorch [XY, number of bands, sequence length] using NumPy
-    data_thermal = np.transpose(data_thermal, (1, 0))
     data = np.transpose(data, (2, 1, 0))
+
     # Move model to the appropriate device
     device = next(model.parameters()).device
 
@@ -267,7 +276,8 @@ def predict_singlegrid(model, tiles, args_predict):
     with torch.no_grad():
         for i in tqdm(range(0, data.shape[0], chunksize)):
             batch = data[i:i + chunksize] * normalizing_factor
-            batch_thermal = data_thermal[i:i + chunksize]
+            if thermal_dataset is not None:
+                batch_thermal = data_thermal[i:i + chunksize]
             non_zero_mask = np.any(batch != 0, axis=(1, 2))
             doy = np.array(doy_single)
             doy = np.tile(doy, (batch.shape[0], 1))
@@ -277,13 +287,14 @@ def predict_singlegrid(model, tiles, args_predict):
             else:
                 batch_non_zero = batch[non_zero_mask]
                 doy_non_zero = doy[non_zero_mask]
-                batch_thermal = batch_thermal[non_zero_mask]
-
                 batch_tensor = torch.tensor(batch_non_zero, dtype=torch.float32, device=device)
                 doy_tensor = torch.tensor(doy_non_zero, dtype=torch.long, device=device)
-                thermal_tensor = torch.tensor(batch_thermal, dtype=torch.long, device=device)
-
-                predictions_non_zero = model(batch_tensor, doy_tensor,thermal_tensor)[0]
+                if thermal_dataset is not None:
+                    batch_thermal = batch_thermal[non_zero_mask]
+                    thermal_tensor = torch.tensor(batch_thermal, dtype=torch.long, device=device)
+                    predictions_non_zero = model(batch_tensor, doy_tensor, thermal_tensor)[0]
+                else:
+                    predictions_non_zero = model(batch_tensor, doy_tensor,thermal_tensor = None)[0]
 
                 # Handle normalization response factor
                 norm_factor_response = args_predict.get("norm_factor_response")
@@ -375,7 +386,7 @@ def predict_raster(args_predict):
 
     hyp = load_hyperparametersplus(os.path.dirname(args_predict["model_path"]))
     args_predict.update(hyp)
-    if args_predict["thermal_time_prediction"] != None and args_predict["thermal_time"] != None:
+    if args_predict["thermal_time_prediction"] is not None and args_predict["thermal_time"] is not None:
         print("Applying Transformer Model with Thermal Positional Encoding!")
     args_predict['store'] = os.path.dirname(args_predict['model_path'])
     # create hw_monitor output dir if it doesn't exist
