@@ -23,7 +23,7 @@ preprocess_params = {
     ########Advanced Parameters################
     ###########################################
     "force_dir": "/force", # mount directory for FORCE-Datacube - should look like /force_mount/FORCE/C1/L2/..
-    "thermal_time": "/uge_mount/FORCE/new_struc/process/data/gdd/concatenated_gdd_start2015_3035.tif", #set None if not using, take care of starting date from gdd -> class_run.py def(calculate_band_index)
+    "thermal_time": None, #"/uge_mount/FORCE/new_struc/process/data/gdd/concatenated_gdd_start2015_3035.tif", #set None if not using, take care of starting date from gdd -> class_run.py def(calculate_band_index)
     "hold": False,  # if True, FORCE cmd must be closed manually ## recommended for debugging FORCE
     "Sensors": "SEN2A SEN2B",  # LND04 LND05 LND07 LND08 LND09 SEN2A SEN2B,
     "Indices": "BLUE GREEN RED NIR SWIR1 SWIR2 RE1 RE2 RE3 BNIR", # Type: Character list. Valid values: {BLUE,GREEN,RED,NIR,SWIR1,SWIR2,RE1,RE2,RE3,BNIR,NDVI,EVI,NBR,NDTI,ARVI,SAVI,SARVI,TC-BRIGHT,TC-GREEN,TC-WET,TC-DI,NDBI,NDWI,MNDWI,NDMI,NDSI,SMA,kNDVI,NDRE1,NDRE2,CIre,NDVIre1,NDVIre2,NDVIre3,NDVIre1n,NDVIre2n,NDVIre3n,MSRre,MSRren,CCI},
@@ -59,7 +59,7 @@ args_train = {
     'augmentation': 1, # Percentage x*100 % for augmenting Training Data with DOY Day Shifting / annual Gaussian Scaling / Zero Out
     'augmentation_plot': None, #Plotting for Augmentations; either None or BandNumber [None, 1, 2, 3, 4, 5, ...]
     'classes_lst': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], #classification classes
-    'tune': True,  # Hyperparameter Tune? True: new folder next to the model will be created named optuna. You can easily visualize statistics with optuna-dashboard /path/to/optuna/config
+    'tune': False,  # Hyperparameter Tune? True: new folder next to the model will be created named optuna. You can easily visualize statistics with optuna-dashboard /path/to/optuna/config
     'study_name': "Tune_TCD_3Years", # Name for Hyperparameter Trial
     'seed': 42,  # seed for batching and weight initialization
     'max_seq_length': int(preprocess_params["time_range"][0])*367,
