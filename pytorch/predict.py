@@ -23,12 +23,15 @@ import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Point
 from rasterio.merge import merge
-
+from rasterio.warp import reproject, Resampling
+from rasterio.mask import mask
 
 def predict(args_predict):
-
     preprocess_params = load_preprocess_settings(os.path.dirname(args_predict["model_path"]))
     preprocess_params["aois"] = args_predict["aois"]
+
+    assert (preprocess_params["thermal_time"] is None and args_predict["thermal_time_prediction"] is None) or \
+           (preprocess_params["thermal_time"] is not None and args_predict["thermal_time_prediction"] is not None), "Different Positional Encoding used for Training and Prediction"
 
     if args_predict["years"] == None:
         preprocess_params["years"] = [int(re.search(r'(\d{4})', os.path.basename(f)).group(1)) for f in preprocess_params["aois"] if re.search(r'(\d{4})', os.path.basename(f))]
@@ -46,7 +49,8 @@ def predict(args_predict):
     args_predict["time_range"] = preprocess_params["time_range"]
     args_predict["feature_order"] = preprocess_params["feature_order"]
 
-    force_class(preprocess_params)
+    if args_predict["reference_folder"] is None:
+        force_class(preprocess_params)
     predict_init(args_predict)
 
 
@@ -94,7 +98,7 @@ def load_model(model_path,args):
     saved_state = torch.load(model_path)
     model_state_dict = saved_state["model_state"]
     args['nclasses'] = saved_state["nclasses"]
-    args['seqlength'] = 367*int(args["time_range"][0])
+    args['seqlength'] = args['max_seq_length']
     args['input_dims'] = saved_state["ndims"]
     #print(f"Sequence Length: {args['seqlength']}")
     print(f"Input Dims: {args['input_dims']}")
@@ -106,7 +110,67 @@ def load_model(model_path,args):
     model.eval()  # Set the model to evaluation mode
     return model
 
-def read_tif_files(folder_path, order, year, month, day):
+# Function to match and load necessary thermal bands based on doa_dates, spatial extent, and resample them
+def load_and_resample_thermal_data(thermal_file_path, bands_data_extent, bands_data_res, doa_dates):
+    """
+    Matches necessary thermal bands based on doa_dates, loads and resamples thermal data to match the spatial
+    extent and resolution of the bands_data.
+
+    Parameters:
+    - thermal_file_path (str): Path to the thermal raster dataset.
+    - bands_data_extent (tuple): The spatial extent (min_x, min_y, max_x, max_y) of the bands_data.
+    - bands_data_res (float): The spatial resolution of the bands_data.
+    - doa_dates (list): List of acquisition dates in '%Y%m%d' format for the bands_data.
+
+    Returns:
+    - resampled_thermal_data (numpy.ndarray): The resampled thermal data that matches bands_data's extent and resolution.
+    - resampled_transform (Affine): The affine transform of the resampled thermal data.
+    """
+    from shapely.geometry import box
+    # Convert doa_dates into a set for quick lookup
+    required_dates = set([datetime.datetime.strptime(str(date), '%Y-%m-%d %H:%M:%S').strftime('%Y%m%d') for date in doa_dates])
+
+    with rasterio.open(thermal_file_path) as thermal_dataset:
+        # Get the band descriptions and map them to their indices
+        band_to_date = {i + 1: thermal_dataset.descriptions[i] for i in range(thermal_dataset.count)}
+
+        # Find the bands that match the required doa_dates
+        matched_bands = [band for band, date in band_to_date.items() if date in required_dates]
+
+        if not matched_bands:
+            raise ValueError("No matching bands found in the thermal dataset for the provided DOA dates.")
+
+        # Check the nodata value of the thermal dataset
+        nodata_value = thermal_dataset.nodata
+
+        # Convert the bounding box (extent) to a Shapely geometry polygon
+        min_x, min_y, max_x, max_y = bands_data_extent
+        geometry = [box(min_x, min_y, max_x, max_y)]  # Create a polygon from the bounding box
+
+        thermal_data, thermal_transform = mask(thermal_dataset, geometry, crop=True, indexes=matched_bands, all_touched=True, nodata=nodata_value)
+
+        # Define the new shape for the resampled data based on the bands_data resolution
+        resampled_height = int((bands_data_extent[3] - bands_data_extent[1]) / bands_data_res)
+        resampled_width = int((bands_data_extent[2] - bands_data_extent[0]) / bands_data_res)
+
+        # Create an empty array to hold the resampled thermal data
+        resampled_thermal_data = np.empty((len(matched_bands), resampled_height, resampled_width), dtype=np.float32)
+        # Resample the cropped thermal data to match the resolution of bands_data
+        reproject(
+            source=thermal_data,
+            destination=resampled_thermal_data,
+            src_transform=thermal_transform,
+            src_crs=thermal_dataset.crs,
+            dst_transform=rasterio.transform.from_bounds(*bands_data_extent, resampled_width, resampled_height),
+            dst_crs=thermal_dataset.crs,
+            resampling=Resampling.nearest,
+            src_nodata=nodata_value,  # Specify the nodata value to ignore it during reprojection
+            dst_nodata=nodata_value   # Set the destination nodata value to the same, or None if no nodata
+        )
+
+    return resampled_thermal_data, rasterio.transform.from_bounds(*bands_data_extent, resampled_width,
+                                                                  resampled_height)
+def read_tif_files(folder_path, order, year, month, day, thermal_dataset=None):
     bands_data = []
     timesteps = []
     #print(folder_path)
@@ -124,8 +188,11 @@ def read_tif_files(folder_path, order, year, month, day):
             # Read all bands from the TIFF file
             band_data = src.read()
             band_data[band_data == -9999] = 0
-            band_data = band_data
             bands_data.append(band_data)
+
+            # Capture transform and resolution for bands_data
+            bands_data_transform = src.transform
+            bands_data_res = src.res[0]  # Assuming square pixels, use the first value for resolution
 
     with rasterio.open(file_path) as src:
         timestamp = src.descriptions  # Assuming you need the first description for DOY
@@ -142,7 +209,33 @@ def read_tif_files(folder_path, order, year, month, day):
     latest_year = max(doa_dates, key=lambda x: x.year).year
     start_date = datetime.datetime(latest_year-year, month, day)
     doy = [(doa_date - start_date).days + 1 for doa_date in doa_dates]
-    return bands_data,doy
+
+    # Calculate the spatial extent of bands_data using the transform
+    height, width = bands_data[0][0].shape  # Assuming consistent shape for all bands
+    min_x, min_y = rasterio.transform.xy(bands_data_transform, height, 0)  # Lower-left corner
+    max_x, max_y = rasterio.transform.xy(bands_data_transform, 0, width)  # Upper-right corner
+    bands_data_extent = (min_x, min_y, max_x, max_y)
+
+
+    # If thermal_file_path is provided, extract thermal data for each pixel and timestep
+    if thermal_dataset is not None:
+        # Load and resample the thermal data to match the spatial extent and resolution of bands_data
+        resampled_thermal_data, resampled_transform = load_and_resample_thermal_data(
+            thermal_dataset, bands_data_extent, bands_data_res, doa_dates
+        )
+
+        # Initialize the thermal_grid to hold the thermal values [timesteps][height][width]
+        thermal_grid = np.zeros((len(doy), height, width), dtype=np.float32)
+
+        # Loop over each timestep and use the resampled thermal data directly
+        for t in range(len(doy)):
+            #print(len(doy))
+            #print(f"Processing timestep {t + 1}/{len(doy)}")
+            #print(resampled_thermal_data.shape)
+            # Directly assign the resampled thermal data to the thermal_grid since it's aligned
+            thermal_grid[t] = resampled_thermal_data[t]
+
+    return bands_data, doy, thermal_grid if thermal_dataset is not None else None
 
 
 def predict_singlegrid(model, tiles, args_predict):
@@ -154,19 +247,27 @@ def predict_singlegrid(model, tiles, args_predict):
     year = int(args_predict['time_range'][0])
     month = int(args_predict['time_range'][1].split('-')[0])
     day = int(args_predict['time_range'][1].split('-')[1])
-
-    data, doy_single = read_tif_files(tiles, order, year, month, day)
-
-    # Stack the bands and perform initial reshape in NumPy
-    data = np.stack(data, axis=1)
-
-    # Reshape data for PyTorch [sequence length, number of bands, height, width]
-    seq_len, num_bands, height, width = data.shape
-    XY = height * width
+    thermal_dataset = args_predict["thermal_time_prediction"]
+    if thermal_dataset is not None:
+        data, doy_single, thermal = read_tif_files(tiles, order, year, month, day, thermal_dataset)
+        data_thermal = np.stack(thermal, axis=0)
+        data = np.stack(data, axis=1)
+        # Reshape data for PyTorch [sequence length, number of bands, height, width]
+        seq_len, num_bands, height, width = data.shape
+        XY = height * width
+        data_thermal = data_thermal.reshape(seq_len, XY)
+        data_thermal = np.transpose(data_thermal, (1, 0))
+    else:
+        # Stack the bands and perform initial reshape in NumPy
+        data, doy_single, thermal = read_tif_files(tiles, order, year, month, day, thermal_dataset)
+        data = np.stack(data, axis=1)
+        # Reshape data for PyTorch [sequence length, number of bands, height, width]
+        seq_len, num_bands, height, width = data.shape
+        XY = height * width
     data = data.reshape(seq_len, num_bands, XY)
-
     # Reorder dimensions for PyTorch [XY, number of bands, sequence length] using NumPy
     data = np.transpose(data, (2, 1, 0))
+
     # Move model to the appropriate device
     device = next(model.parameters()).device
 
@@ -175,6 +276,8 @@ def predict_singlegrid(model, tiles, args_predict):
     with torch.no_grad():
         for i in tqdm(range(0, data.shape[0], chunksize)):
             batch = data[i:i + chunksize] * normalizing_factor
+            if thermal_dataset is not None:
+                batch_thermal = data_thermal[i:i + chunksize]
             non_zero_mask = np.any(batch != 0, axis=(1, 2))
             doy = np.array(doy_single)
             doy = np.tile(doy, (batch.shape[0], 1))
@@ -186,8 +289,12 @@ def predict_singlegrid(model, tiles, args_predict):
                 doy_non_zero = doy[non_zero_mask]
                 batch_tensor = torch.tensor(batch_non_zero, dtype=torch.float32, device=device)
                 doy_tensor = torch.tensor(doy_non_zero, dtype=torch.long, device=device)
-
-                predictions_non_zero = model(batch_tensor, doy_tensor)[0]
+                if thermal_dataset is not None:
+                    batch_thermal = batch_thermal[non_zero_mask]
+                    thermal_tensor = torch.tensor(batch_thermal, dtype=torch.long, device=device)
+                    predictions_non_zero = model(batch_tensor, doy_tensor, thermal_tensor)[0]
+                else:
+                    predictions_non_zero = model(batch_tensor, doy_tensor,thermal_tensor = None)[0]
 
                 # Handle normalization response factor
                 norm_factor_response = args_predict.get("norm_factor_response")
@@ -279,6 +386,10 @@ def predict_raster(args_predict):
 
     hyp = load_hyperparametersplus(os.path.dirname(args_predict["model_path"]))
     args_predict.update(hyp)
+    if args_predict["thermal_time_prediction"] is not None and args_predict["thermal_time"] is not None:
+        print("Applying Transformer Model with Thermal Positional Encoding!")
+    else:
+        print("Applying Transformer Model with Calendar Positional Encoding!")
     args_predict['store'] = os.path.dirname(args_predict['model_path'])
     # create hw_monitor output dir if it doesn't exist
     drive_name = ["sdb1"]

@@ -34,8 +34,10 @@ class Trainer():
                  optimizer=None,
                  logger=None,
                  response = None,
+                 norm_factor_response = None,
                  **kwargs):
 
+        self.norm_factor_response = norm_factor_response
         self.response = response
         self.epochs = epochs
         self.batch_size = validdataloader.batch_size
@@ -188,24 +190,25 @@ class Trainer():
         for iteration, data in progress_bar:
 
             self.optimizer.zero_grad()
-            inputs, targets, doy = data
+            inputs, targets, doy, thermal = data
 
             if torch.cuda.is_available():
                 inputs = inputs.cuda()
                 targets = targets.cuda()
 
-
-            if self.model.__class__.__name__ == "TransformerEncoder":
+            if self.model.__class__.__name__ == "TransformerEncoder" and thermal is not None:
+                logprobabilities, deltas, pts, budget = self.model.forward(inputs.transpose(1, 2), doy, thermal)
+            elif self.model.__class__.__name__ == "TransformerEncoder":
                 logprobabilities, deltas, pts, budget = self.model.forward(inputs.transpose(1, 2), doy)
             else:
                 logprobabilities, deltas, pts, budget = self.model.forward(inputs.transpose(1,2))
-
             #print(inputs.transpose(1,2))
             #print(self.model(inputs.transpose(1,2))[0])
             if self.response == "classification":
                 loss = F.nll_loss(logprobabilities, targets)
             else:
                 loss = F.mse_loss(logprobabilities.squeeze(1),targets)
+
 
             loss.backward()
 
@@ -234,7 +237,17 @@ class Trainer():
             else:
                 stats = metric.add(stats)
                 # Calculate the MSE and R2 for this iteration
-                rmse_r2_stats = metric.update_mat(targets.detach().cpu().numpy(),logprobabilities.squeeze(1).detach().cpu().numpy())
+                targets = targets.detach().cpu().numpy()
+                responses = logprobabilities.squeeze(1).detach().cpu().numpy()
+
+                if self.norm_factor_response == "log10":
+                    targets = np.power(10, targets) - 1
+                    responses = np.power(10, responses) - 1
+                elif self.norm_factor_response is not None and self.norm_factor_response != 0:
+                    targets /= self.norm_factor_response
+                    responses /= self.norm_factor_response
+
+                rmse_r2_stats = metric.update_mat(targets,responses)
 
                 # Add MSE and R2 to the `stats` dictionary
                 stats["r2"] = rmse_r2_stats["r2"]
@@ -262,13 +275,15 @@ class Trainer():
         with torch.no_grad():
             for iteration, data in enumerate(dataloader):
 
-                inputs, targets, doy = data
+                inputs, targets, doy, thermal = data
 
                 if torch.cuda.is_available():
                     inputs = inputs.cuda()
                     targets = targets.cuda()
 
-                if self.model.__class__.__name__ == "TransformerEncoder":
+                if self.model.__class__.__name__ == "TransformerEncoder" and thermal is not None:
+                    logprobabilities, deltas, pts, budget = self.model.forward(inputs.transpose(1, 2), doy, thermal)
+                elif self.model.__class__.__name__ == "TransformerEncoder":
                     logprobabilities, deltas, pts, budget = self.model.forward(inputs.transpose(1, 2), doy)
                 else:
                     logprobabilities, deltas, pts, budget = self.model.forward(inputs.transpose(1, 2))
@@ -299,7 +314,17 @@ class Trainer():
                 else:
                     stats = metric.add(stats)
                     # Calculate the MSE and R2 for this iteration
-                    rmse_r2_stats = metric.update_mat(targets.detach().cpu().numpy(),logprobabilities.squeeze(1).detach().cpu().numpy())
+                    targets_vali = targets.detach().cpu().numpy()
+                    responses_vali = logprobabilities.squeeze(1).detach().cpu().numpy()
+
+                    if self.norm_factor_response == "log10":
+                        targets_vali = np.power(10, targets_vali) - 1
+                        responses_vali = np.power(10, responses_vali) - 1
+                    elif self.norm_factor_response is not None and self.norm_factor_response != 0:
+                        targets_vali /= self.norm_factor_response
+                        responses_vali /= self.norm_factor_response
+
+                    rmse_r2_stats = metric.update_mat(targets_vali,responses_vali)
                     # Add MSE and R2 to the `stats` dictionary
                     stats["r2"] = rmse_r2_stats["r2"]
                     stats["rmse"] = rmse_r2_stats["rmse"]

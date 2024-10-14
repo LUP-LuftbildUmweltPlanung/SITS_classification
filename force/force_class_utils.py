@@ -106,7 +106,7 @@ def force_class(preprocess_params):
     ###save preprocessing settings for prediction
     os.makedirs(f'{temp_folder}/{project_name}/FORCE', exist_ok=True)
     # List of keys you want to save
-    keys_to_save = ["time_range","Interpolation","INT_DAY","Sensors","Indices","SPECTRAL_ADJUST","INTERPOLATE","ABOVE_NOISE","BELOW_NOISE","NTHREAD_READ","NTHREAD_COMPUTE","NTHREAD_WRITE","BLOCK_SIZE","band_names","start_doy_month","feature_order"]  # replace these with the actual keys you want to save
+    keys_to_save = ["time_range","Interpolation","INT_DAY","Sensors","Indices","SPECTRAL_ADJUST","INTERPOLATE","ABOVE_NOISE","BELOW_NOISE","NTHREAD_READ","NTHREAD_COMPUTE","NTHREAD_WRITE","BLOCK_SIZE","band_names","start_doy_month","feature_order","thermal_time"]  # replace these with the actual keys you want to save
     # Create a new dictionary with only the specified keys
     filtered_params = {key: preprocess_params[key] for key in keys_to_save if key in preprocess_params}
     # Save the filtered dictionary to the JSON file

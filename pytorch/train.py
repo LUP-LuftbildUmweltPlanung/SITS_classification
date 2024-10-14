@@ -31,53 +31,64 @@ from config_hyperparameter import hyperparameter_config, hyperparameter_tune
 import optuna
 from torch.nn.utils.rnn import pad_sequence
 from pytorch.utils.augmentation import time_warp, plot, apply_scaling, apply_augmentation
-def prepare_dataset(args):
-    assert args['response'] in ["regression_sigmoid", "regression", "regression_relu", "classification"]
 
-    if args['response'].startswith("regression"):
-        args['classes_lst'] = [0]
-    #ImbalancedDatasetSampler
+def train_init(args_train, preprocess_params):
 
-    print("setting random seed to "+str(args['seed']))
-    np.random.seed(args['seed'])
-    if args['seed'] is not None:
-        torch.random.manual_seed(args['seed'])
+    args_train["time_range"] = preprocess_params["time_range"] # relevant for relative yearls doy seperation for augmentations
+    args_train["workers"] = 10  # number of CPU workers to load the next batch
 
-    ref_dataset = Dataset(root=args['data_root'], classes=args['classes_lst'], seed=args['seed'], response=args['response'], norm=args['norm_factor_features'], norm_response = args['norm_factor_response'])
+    args_train["data_root"] = f'{preprocess_params["process_folder"]}/results/_SITSrefdata/{preprocess_params["project_name"]}/sepfiles/train/' # folder with CSV or cached NPY folder
+    args_train["store"] = f'{preprocess_params["process_folder"]}/results/_SITSModels/{preprocess_params["project_name"]}/'  # Store Model Data Path
 
-    return ref_dataset
+    args_train["thermal_time"] = preprocess_params["thermal_time"]
+    # create hw_monitor output dir if it doesn't exist
+    Path(args_train['store'] + '/' + args_train['model'] + '/hw_monitor').mkdir(parents=True, exist_ok=True)
+    args_train["sdb1"] = ["sdb1"]
 
-def collate_fn(batch, p, plotting, time_range):
-    X_batch, y_batch, doy_batch = zip(*batch)
-    # Apply augmentation with probability p to each item in the batch
-    X_batch_augmented = []
-    doy_batch_augmented = []
-    for X, doy in zip(X_batch, doy_batch):
-        X_aug, doy_aug = apply_augmentation(X, doy, p, plotting, time_range)
-        X_batch_augmented.append(X_aug)
-        doy_batch_augmented.append(doy_aug)
+    hw_train_logs_file = args_train['store'] + '/' + args_train['model'] + '/hw_monitor/hw_monitor_train.csv'
+    # Instantiate monitor with a 1-second delay between updates
+    hwmon = HWMonitor(1,hw_train_logs_file,args_train["sdb1"])
+    hwmon.start()
+    hwmon.start_averaging()
 
-    X_padded = pad_sequence(X_batch_augmented, batch_first=True, padding_value=0)
-    doy_padded = pad_sequence(doy_batch_augmented, batch_first=True, padding_value=0)
-    y_padded = torch.stack(y_batch)
-    return X_padded, y_padded, doy_padded
+    if args_train['tune'] == True:
+        print("hyperparameter tuning ...")
+        os.makedirs(args_train['store'] + args_train['model'] + '/optuna', exist_ok=True)
+        storage_path = args_train['store'] + args_train['model'] + '/optuna/storage'
+        print(storage_path)
+        storage = optuna.storages.JournalStorage(optuna.storages.JournalFileStorage(storage_path))
+        study = optuna.create_study(direction="minimize", sampler=optuna.samplers.CmaEsSampler(),pruner=optuna.pruners.MedianPruner(), storage=storage,
+                                    study_name=args_train['study_name'])
+        study.optimize(lambda trial: train(trial, args_train), n_trials=100)
+        print(f"Best value: {study.best_value} (params: {study.best_params})")
+    else:
+        train(None, args_train,)
 
-def collate_fn_notransform(batch, p, plotting):
-    X_batch, y_batch, doy_batch = zip(*batch)
+    hwmon.stop_averaging()
+    avgs = hwmon.get_averages()
+    squeezed = squeeze_hw_info(avgs)
+    mean_data = {key: round(value, 1) for key, value in squeezed.items() if "mean" in key}
+    print(f"Mean Values Hardware Monitoring (Training Model):\n{mean_data}\n##############################")
 
-    X_padded = pad_sequence(X_batch, batch_first=True, padding_value=0)
-    doy_padded = pad_sequence(doy_batch, batch_first=True, padding_value=0)
-    y_padded = torch.stack(y_batch)
-    return X_padded, y_padded, doy_padded
+    hwmon.stop()
 
-def train(trial,args_train,ref_dataset):
+def train(trial,args_train):
+
+    hw_init_logs_file = args_train['store'] + '/' + args_train['model'] + '/hw_monitor/hw_monitor_init.csv'
+    # Instantiate monitor with a 0.drive_name1-second delay between updates
+    hwmon_i = HWMonitor(0.1, hw_init_logs_file, args_train["sdb1"])
+    hwmon_i.start()
+    hwmon_i.start_averaging()
+
     # add the splitting part here
-    if args_train["tune"]==True:
-        new_args_tune = hyperparameter_tune(trial,args_train['model'])
+    if args_train["tune"] == True:
+        new_args_tune = hyperparameter_tune(trial, args_train['model'])
         args_train.update(new_args_tune)
+        ref_dataset = prepare_dataset(args_train)
     else:
         new_args = hyperparameter_config(args_train['model'])
         args_train.update(new_args)
+        ref_dataset = prepare_dataset(args_train)
 
         os.makedirs(os.path.join(args_train['store'], args_train['model']), exist_ok=True)
         try:
@@ -87,6 +98,14 @@ def train(trial,args_train,ref_dataset):
         hyperparmeter_path = os.path.join(args_train['store'], args_train['model'], "hyperparameters.json")
         with open(hyperparmeter_path, 'w') as file:
             json.dump(args_train, file, indent=4)
+
+
+    hwmon_i.stop_averaging()
+    avgs = hwmon_i.get_averages()
+    squeezed = squeeze_hw_info(avgs)
+    mean_data = {key: round(value, 1) for key, value in squeezed.items() if "mean" in key}
+    print(f"##################\nMean Values Hardware Monitoring (Preparing Data):\n{mean_data}\n##################")
+    hwmon_i.stop()
 
     #selected_size = int((args['partition'] / 100.0) * len(ref_dataset))
     torch.manual_seed(args_train['seed'])
@@ -107,13 +126,15 @@ def train(trial,args_train,ref_dataset):
     plotting = args_train['augmentation_plot']
     time_range = args_train['time_range'][1]
 
+    include_thermal = args_train['thermal_time'] is not None
+
     traindataloader = torch.utils.data.DataLoader(dataset=train_dataset, sampler=RandomSampler(train_dataset),
                                                   batch_size=args_train['batchsize'], num_workers=args_train['workers'],
-                                                  collate_fn=lambda batch: collate_fn(batch, p, plotting, time_range))
+                                                  collate_fn=lambda batch: collate_fn(batch, p, plotting, time_range, include_thermal))
 
     validdataloader = torch.utils.data.DataLoader(dataset=valid_dataset, sampler=SequentialSampler(valid_dataset),
                                                   batch_size=args_train['batchsize'], num_workers=args_train['workers'],
-                                                  collate_fn=lambda batch: collate_fn_notransform(batch, p=0, plotting=None))
+                                                  collate_fn=lambda batch: collate_fn_notransform(batch, include_thermal, p=0, plotting=None))
 
 
 
@@ -133,6 +154,11 @@ def train(trial,args_train,ref_dataset):
     print(f"Input Dims: {args_train['input_dims']}")
     print(f"Prediction Classes: {len(args_train['classes_lst'])}")
     print(f"Data Augmentation: {p * 100} % Training Data will be augmented (Single, Double or Triple (30/30/30) of Annual Scaling / DOY Day Shifting / Zero Out")
+    if include_thermal:
+        print(f"Applying Transformer Model with Thermal Positional Encoding!\n-> GDD Path:{args_train['thermal_time']}")
+    else:
+        print("Applying Transformer Model with Calendar Positional Encoding!")
+
     model = getModel(args_train)
 
     store = os.path.join(args_train['store'],args_train['model'])
@@ -160,23 +186,17 @@ def train(trial,args_train,ref_dataset):
         valid_every_n_epochs=args_train['valid_every_n_epochs'],
         logger=logger,
         optimizer=optimizer,
-        response = args_train['response']
+        response=args_train['response'],
+        norm_factor_response=args_train['norm_factor_response']
     )
-
-
-
     trainer = Trainer(trial,model,traindataloader,validdataloader,**config)
     logger = trainer.fit()
 
     validation_metrics = logger.get_data()[logger.get_data()['mode'] == 'valid']
-
-
     if config['response'] == 'classification':
         return validation_metrics['accuracy'].max()
     else:
         return validation_metrics['rmse'].min()
-
-
     pass
 
 def getModel(args):
@@ -206,79 +226,65 @@ def getModel(args):
 
     return model
 
+def prepare_dataset(args):
+    assert args['response'] in ["regression_sigmoid", "regression", "regression_relu", "classification"]
 
-def train_init(args_train, preprocess_params):
+    if args['response'].startswith("regression"):
+        args['classes_lst'] = [0]
+    #ImbalancedDatasetSampler
 
-    args_train["time_range"] = preprocess_params["time_range"] # relevant for relative yearls doy seperation for augmentations
-    args_train["workers"] = 10  # number of CPU workers to load the next batch
+    print("setting random seed to "+str(args['seed']))
+    np.random.seed(args['seed'])
+    if args['seed'] is not None:
+        torch.random.manual_seed(args['seed'])
 
-    args_train["data_root"] = f'{preprocess_params["process_folder"]}/results/_SITSrefdata/{preprocess_params["project_name"]}/sepfiles/train/' # folder with CSV or cached NPY folder
-    args_train["store"] = f'{preprocess_params["process_folder"]}/results/_SITSModels/{preprocess_params["project_name"]}/'  # Store Model Data Path
-    # create hw_monitor output dir if it doesn't exist
-    Path(args_train['store'] + '/' + args_train['model'] + '/hw_monitor').mkdir(parents=True, exist_ok=True)
-    drive_name = ["sdb1"]
+    ref_dataset = Dataset(root=args['data_root'], classes=args['classes_lst'], seed=args['seed'], response=args['response'],
+                          norm=args['norm_factor_features'], norm_response = args['norm_factor_response'], thermal = args["thermal_time"])
 
-    if args_train['tune'] == True:
-        print("tuning")
+    return ref_dataset
 
-        hw_init_logs_file = args_train['store'] + '/' + args_train['model'] + '/hw_monitor/hw_monitor_init_' +args_train['study_name']+'.csv'
-        hw_tune_logs_file = args_train['store'] + '/' + args_train['model'] + '/hw_monitor/hw_monitor_tune_' +args_train['study_name']+'.csv'
+def collate_fn(batch, p, plotting, time_range, include_thermal):
 
-        # Instantiate monitor with a 0.1-second delay between updates
-        hwmon_i = HWMonitor(0.1,hw_init_logs_file,drive_name)
-        hwmon_i.start()
-        ref_dataset = prepare_dataset(args_train)
-        hwmon_i.stop()
+    X_batch, y_batch, doy_batch, thermal_batch = zip(*batch)
+    # Apply augmentation with probability p to each item in the batch
+    thermal_batch_augmented = []
+    X_batch_augmented = []
+    doy_batch_augmented = []
 
-        os.makedirs(args_train['store'] + 'optuna', exist_ok=True)
-        storage_path = args_train['store'] + '/optuna/storage'
-        print(storage_path)
-        storage = optuna.storages.JournalStorage(optuna.storages.JournalFileStorage(storage_path))
-        study = optuna.create_study(direction="minimize", sampler=optuna.samplers.CmaEsSampler(),
-                                    pruner=optuna.pruners.MedianPruner(), storage=storage, study_name=args_train['study_name'])
+    # Check if thermal_batch is None, if so, create a list of None values with the same length as X_batch
+    if thermal_batch is None:
+        thermal_batch = [None] * len(X_batch)
 
-        # Instantiate monitor with a 1-second delay between updates
-        hwmon = HWMonitor(1,hw_tune_logs_file,drive_name)
-        hwmon.start()
-        study.optimize(lambda trial: train(trial, args_train, ref_dataset), n_trials=100)
-        hwmon.stop()
+    for X, doy, thermal in zip(X_batch, doy_batch, thermal_batch):
+        X_aug, doy_aug, thermal_aug = apply_augmentation(X, doy, thermal, p, plotting, time_range)
+        if include_thermal:
+            thermal_batch_augmented.append(thermal_aug)
+        X_batch_augmented.append(X_aug)
+        doy_batch_augmented.append(doy_aug)
 
-        print(f"Best value: {study.best_value} (params: {study.best_params})")
 
+    X_padded = pad_sequence(X_batch_augmented, batch_first=True, padding_value=0)
+    doy_padded = pad_sequence(doy_batch_augmented, batch_first=True, padding_value=0)
+    y_padded = torch.stack(y_batch)
+
+    if include_thermal:
+        thermal_padded = pad_sequence(thermal_batch_augmented, batch_first=True, padding_value=0)
+        return X_padded, y_padded, doy_padded, thermal_padded
     else:
-        hw_init_logs_file = args_train['store'] + '/' + args_train['model'] + '/hw_monitor/hw_monitor_init.csv'
-        hw_train_logs_file = args_train['store'] + '/' + args_train['model'] + '/hw_monitor/hw_monitor_train.csv'
+        return X_padded, y_padded, doy_padded, None
 
-        # Instantiate monitor with a 0.drive_name1-second delay between updates
-        hwmon_i = HWMonitor(0.1,hw_init_logs_file,drive_name)
-        hwmon_i.start()
-        hwmon_i.start_averaging()
+def collate_fn_notransform(batch, include_thermal, p, plotting):
 
-        ref_dataset = prepare_dataset(args_train)
+    X_batch, y_batch, doy_batch, thermal_batch = zip(*batch)
 
-        hwmon_i.stop_averaging()
-        avgs = hwmon_i.get_averages()
-        squeezed = squeeze_hw_info(avgs)
-        mean_data = {key: round(value, 1) for key, value in squeezed.items() if "mean" in key}
-        print(f"##################\nMean Values Hardware Monitoring (Preparing Data):\n{mean_data}\n##################")
-        hwmon_i.stop()
+    X_padded = pad_sequence(X_batch, batch_first=True, padding_value=0)
+    doy_padded = pad_sequence(doy_batch, batch_first=True, padding_value=0)
+    y_padded = torch.stack(y_batch)
 
-
-
-        # Instantiate monitor with a 1-second delay between updates
-        hwmon = HWMonitor(1,hw_train_logs_file,drive_name)
-        hwmon.start()
-        hwmon.start_averaging()
-
-        train(None, args_train, ref_dataset)
-
-        hwmon.stop_averaging()
-        avgs = hwmon.get_averages()
-        squeezed = squeeze_hw_info(avgs)
-        mean_data = {key: round(value, 1) for key, value in squeezed.items() if "mean" in key}
-        print(f"Mean Values Hardware Monitoring (Training Model):\n{mean_data}\n##############################")
-
-        hwmon.stop()
-
+    if include_thermal:
+        thermal_padded = pad_sequence(thermal_batch, batch_first=True, padding_value=0)
+        return X_padded, y_padded, doy_padded, thermal_padded
+    else:
+        return X_padded, y_padded, doy_padded, None
 
 

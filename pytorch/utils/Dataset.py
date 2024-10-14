@@ -11,7 +11,7 @@ import pickle
 
 class Dataset(torch.utils.data.Dataset):
 
-    def __init__(self, root, classes, cache=True, seed=0, response = None, norm = None, norm_response = None):
+    def __init__(self, root, classes, cache=True, seed=0, response = None, norm = None, norm_response = None, thermal = None):
 
         self.seed = seed
 
@@ -25,7 +25,7 @@ class Dataset(torch.utils.data.Dataset):
         self.response = response
         self.trainids = os.path.join(self.root, "csv")
         self.validids = os.path.join(self.root, "csv")
-        #self.partition = partition
+        self.thermal = thermal
 
         classes = np.array(classes)
         self.classes = np.unique(classes)
@@ -59,11 +59,17 @@ class Dataset(torch.utils.data.Dataset):
 
         self.X = list()
         self.doy = list()  # Add a list to store DOY information
+        if self.thermal != None:
+            self.thermal_time = list()  # Add a list to store DOY information
         self.nutzcodes = list()
         self.ids = list()
 
         for id in tqdm.tqdm(ids):
-            X, nutzcode, doy = self.load(id)  # Adjusted to unpack three values
+            if self.thermal != None:
+                X, nutzcode, doy, thermal_time = self.load(id)  # Adjusted to unpack three values
+            else:
+                X, nutzcode, doy = self.load(id)  # Adjusted to unpack three values
+
             if len(nutzcode) > 0:
                 if self.response == "classification":
                     nutzcode = int(nutzcode[0])
@@ -72,6 +78,8 @@ class Dataset(torch.utils.data.Dataset):
 
                 self.X.append(X)
                 self.doy.append(doy)  # Store DOY information
+                if self.thermal != None:
+                    self.thermal_time.append(thermal_time)
                 self.nutzcodes.append(nutzcode)
                 self.ids.append(id)
 
@@ -80,10 +88,12 @@ class Dataset(torch.utils.data.Dataset):
         self.sequencelength = max(self.sequencelengths)
         self.ndims = np.array(self.X[0]).shape[1]  # Assuming all X have the same number of dimensions
 
-        self.cache_variables(self.y, self.sequencelengths, self.ids, self.ndims, self.X, self.doy)  # Adjusted to also cache DOY
+        if self.thermal != None:
+            self.cache_variables(self.y, self.sequencelengths, self.ids, self.ndims, self.X, self.doy, self.thermal_time)  # Adjusted to also cache DOY
+        else:
+            self.cache_variables(self.y, self.sequencelengths, self.ids, self.ndims, self.X,self.doy, None)  # Adjusted to also cache DOY
 
-
-    def cache_variables(self, y, sequencelengths, ids, ndims, X, doy):
+    def cache_variables(self, y, sequencelengths, ids, ndims, X, doy, thermal_time):
         os.makedirs(self.cache, exist_ok=True)
         # cache
         np.save(os.path.join(self.cache, "y.npy"), y)
@@ -100,6 +110,9 @@ class Dataset(torch.utils.data.Dataset):
             pickle.dump(doy,f)
         with open(os.path.join(self.cache, "X.pkl"), 'wb') as f:
             pickle.dump(X,f)
+        if self.thermal != None:
+            with open(os.path.join(self.cache, "thermal_time.pkl"), 'wb') as f:
+                pickle.dump(thermal_time,f)
 
     # When saving:
 
@@ -119,6 +132,9 @@ class Dataset(torch.utils.data.Dataset):
             self.doy = pickle.load(f)
         with open(os.path.join(self.cache, "X.pkl"), 'rb') as f:
             self.X = pickle.load(f)
+        if self.thermal != None:
+            with open(os.path.join(self.cache, "thermal_time.pkl"), 'rb') as f:
+                self.thermal_time = pickle.load(f)
 
 
     def cache_exists(self):
@@ -128,7 +144,11 @@ class Dataset(torch.utils.data.Dataset):
         idsexist = os.path.exists(os.path.join(self.cache, "ids.npy"))
         Xexists = os.path.exists(os.path.join(self.cache, "X.pkl"))
         doyxists = os.path.exists(os.path.join(self.cache, "doy.pkl"))
-        return yexist and sequencelengthsexist and idsexist and ndimsexist and Xexists and doyxists
+        if self.thermal != None:
+            thermaltimexists = os.path.exists(os.path.join(self.cache, "thermal_time.pkl"))
+            return yexist and sequencelengthsexist and idsexist and ndimsexist and Xexists and doyxists and thermaltimexists
+        else:
+            return yexist and sequencelengthsexist and idsexist and ndimsexist and Xexists and doyxists
 
     def clean_cache(self):
         os.remove(os.path.join(self.cache, "y.npy"))
@@ -138,6 +158,8 @@ class Dataset(torch.utils.data.Dataset):
         #os.remove(os.path.join(self.cache, "dataweights.npy"))
         os.remove(os.path.join(self.cache, "X.npz"))
         os.remove(os.path.join(self.cache, "doy.npz"))
+        if self.thermal != None:
+            os.remove(os.path.join(self.cache, "thermal_time.npz"))
         os.removedirs(self.cache)
 
     def load(self, csv_file):
@@ -155,12 +177,22 @@ class Dataset(torch.utils.data.Dataset):
 
         # Read the CSV file with numpy
         data = genfromtxt(csv_file, delimiter=',', skip_header=1, filling_values=0)  # Fill missing values with 0
-        # Extract data without applying normalization
-        X = data[:, 3:]  # Features without normalization
-        nutzcodes = data[:, 2]  # Target values without normalization
-        doy = data[:, 1]  # Day of year
+        if self.thermal != None:
+            # Extract data without applying normalization
+            X = data[:, 4:]  # Features without normalization
+            thermal_time = data[:, 3]  # Target values without normalization
+            nutzcodes = data[:, 2]  # Target values without normalization
+            doy = data[:, 1]  # Day of year
+            return X, nutzcodes, doy, thermal_time
 
-        return X, nutzcodes, doy
+        else:
+            # Extract data without applying normalization
+            X = data[:, 3:]  # Features without normalization
+            nutzcodes = data[:, 2]  # Target values without normalization
+            doy = data[:, 1]  # Day of year
+            return X, nutzcodes, doy
+
+
 
 
     def __len__(self):
@@ -181,6 +213,7 @@ class Dataset(torch.utils.data.Dataset):
         nutzcodes_raw = self.y[idx]
         doy = self.doy[idx]
 
+
         # Apply normalization to X
         X = X_raw * self.norm if self.norm is not None else X_raw
 
@@ -198,4 +231,9 @@ class Dataset(torch.utils.data.Dataset):
         doy_tensor = torch.from_numpy(doy).float()  # Assuming doy is already a numpy array
         y_tensor = torch.tensor(nutzcodes, dtype=torch.long if self.response == "classification" else torch.float)
 
-        return X_tensor, y_tensor, doy_tensor
+        if self.thermal != None:
+            thermal_time = self.thermal_time[idx]
+            thermal_tensor = torch.from_numpy(thermal_time).float()
+            return X_tensor, y_tensor, doy_tensor, thermal_tensor
+        else:
+            return X_tensor, y_tensor, doy_tensor, None

@@ -29,7 +29,38 @@ def force_sample(preprocess_params):
     force_class(preprocess_params)
     sample_to_ref_sepfiles(preprocess_params) # splits for single domain then goes to next
 
-# Function to move files
+
+def load_thermal_data_to_memory(dataset):
+    """
+    Loads all bands from the raster dataset into memory as a NumPy array.
+    """
+    return dataset.read()  # This reads all bands into a NumPy array.
+
+def calculate_band_index(time, dataset):
+    """
+    Calculates the band index for a given year and day of year (DOY).
+    """
+    # Define the start date of the raster stack (assuming it starts from 01-01-2017)
+    start_date = datetime.datetime(2015, 1, 1)
+    target_date = datetime.datetime.strptime(time, "%Y%m%d")
+    # Calculate the difference in days between start_date and target_date
+    days_since_start = (target_date - start_date).days
+    # Ensure the dataset has enough bands (days) to cover the requested date
+    if days_since_start >= dataset.count:
+        raise ValueError(f"The raster does not contain data for {target_date}.")
+    if days_since_start < 0:
+        raise ValueError(f"The raster data does not cover dates before {start_date}.")
+    # Return the band index (rasterio is 1-indexed)
+    return days_since_start
+
+def extract_thermal_value_from_memory(thermal_data, dataset, coords, band_index):
+    """
+    Extracts the thermal value from the pre-loaded thermal data (NumPy array) based on coordinates and band index.
+    """
+    row, col = dataset.index(coords[0], coords[1])  # Get the row, col for the given coordinates
+    return thermal_data[band_index, row, col]  # Access the in-memory data for the specific band
+
+
 def move_files(output_folder, file_list, dest_folder):
     for file in file_list:
         shutil.move(os.path.join(output_folder, file), os.path.join(dest_folder, file))
@@ -41,6 +72,7 @@ def sample_to_ref_sepfiles(preprocess_params, **kwargs):
     preprocess_params["project_name"] = preprocess_params["project_name"]
 
     bands = len(preprocess_params["feature_order"])
+    thermal_time = preprocess_params['thermal_time']
 
     output_folder_sep = f'{output_folder}/sepfiles'
     print(f"Output folder does not exist ... creating {output_folder_sep}")
@@ -49,6 +81,12 @@ def sample_to_ref_sepfiles(preprocess_params, **kwargs):
         shutil.copy(f'{temp_folder}/{preprocess_params["project_name"]}/preprocess_settings.json', f'{output_folder}/preprocess_settings.json')
     except:
         print("Couldnt Copy preprocess_settings.json")
+
+    # Load the thermal raster once if thermal_time is provided
+    thermal_dataset = None
+    if thermal_time is not None:
+        thermal_dataset = rasterio.open(thermal_time)  # Open once
+        thermal_data = load_thermal_data_to_memory(thermal_dataset)  # Load into memory
 
     # Initialize an empty DataFrame for storing coordinates
     coordinates_list = []
@@ -68,7 +106,6 @@ def sample_to_ref_sepfiles(preprocess_params, **kwargs):
     for force_dir in force_dirs:
         # Extract the folder name (basename)
         folder_name = os.path.basename(force_dir)
-
         if folder_name not in points_years_mapping:
             raise ValueError(f"Folder name '{folder_name}' does not have a corresponding year in preprocess_params.")
 
@@ -140,9 +177,20 @@ def sample_to_ref_sepfiles(preprocess_params, **kwargs):
                     pixel_df.insert(1, 'doy', doy)  # Step 4: Insert 'doy' into DataFrame
                     pixel_df.insert(2, 'label', resp_row[0])
 
+                    # If thermal_time is provided, insert the thermal column
+                    if thermal_time is not None:
+                        thermal_values = []
+                        for time in timesteps[:timesteps_per_band]:
+                            # Use the optimized function to extract from the loaded dataset
+                            band_index = calculate_band_index(time, thermal_dataset)
+                            thermal_value = extract_thermal_value_from_memory(thermal_data, thermal_dataset, (coord_row_data[0], coord_row_data[1]), band_index)
+                            thermal_values.append(thermal_value)
+                        pixel_df.insert(3, 'thermal', thermal_values)
+
+
                     # delete timesteps with only nan values
                     if preprocess_params["Interpolation"] == False:
-                        pixel_df = pixel_df.dropna(axis=0, how='all', subset=pixel_df.columns[3:])
+                        pixel_df = pixel_df.dropna(axis=0, how='all', subset=pixel_df.columns[4:])
                     else:
                         if pixel_df[preprocess_params["feature_order"]].isna().any().any():
                             pixel_df[preprocess_params["feature_order"]] = pixel_df[preprocess_params["feature_order"]].interpolate(method='linear', limit_direction='both',axis=0)
