@@ -217,7 +217,6 @@ class Dataset(torch.utils.data.Dataset):
         # Apply normalization to X
         X = X_raw * self.norm if self.norm is not None else X_raw
 
-        #print(nutzcodes_raw)
         # Apply normalization to nutzcodes
         if self.norm_r is None:
             nutzcodes = nutzcodes_raw
@@ -225,11 +224,18 @@ class Dataset(torch.utils.data.Dataset):
             nutzcodes = np.log10(nutzcodes_raw + 1)
         else:
             nutzcodes = nutzcodes_raw * self.norm_r
-        #print(nutzcodes)
         # Convert to PyTorch tensors
         X_tensor = torch.from_numpy(X).float()
         doy_tensor = torch.from_numpy(doy).float()  # Assuming doy is already a numpy array
         y_tensor = torch.tensor(nutzcodes, dtype=torch.long if self.response == "classification" else torch.float)
+
+        # Check for NaN values in y_tensor
+        if torch.isnan(X_tensor).any():
+            print(f'NaN values detected in y_tensor at index {idx}')
+        if torch.isnan(doy_tensor).any():
+            print(f'NaN values detected in X_tensor at index {idx}')
+        if torch.isnan(y_tensor).any():
+            print(f'NaN values detected in doy_tensor at index {idx}')
 
         if self.thermal != None:
             thermal_time = self.thermal_time[idx]
