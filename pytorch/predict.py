@@ -294,7 +294,7 @@ def predict_singlegrid(model, tiles, args_predict):
                     thermal_tensor = torch.tensor(batch_thermal, dtype=torch.long, device=device)
                     predictions_non_zero = model(batch_tensor, doy_tensor, thermal_tensor)[0]
                 else:
-                    predictions_non_zero = model(batch_tensor, doy_tensor,thermal_tensor = None)[0]
+                    predictions_non_zero = model(batch_tensor, doy_tensor,thermal = None)[0]
 
                 # Handle normalization response factor
                 norm_factor_response = args_predict.get("norm_factor_response")
@@ -452,6 +452,11 @@ def predict_csv(args_predict):
         data = pixel_df[order].values
         doy = pixel_df['doy'].values
 
+        # *Handle thermal data if available
+        if args_predict["thermal_time_prediction"] is not None:
+            thermal_data = pixel_df["thermal"].values  # Modify according to how thermal data is structured in your CSV
+            thermal_data = torch.tensor(thermal_data, dtype=torch.float32).unsqueeze(0).to(next(model.parameters()).device)
+
         # Preprocess data for the model
         data = data * args_predict['norm_factor_features']  # Normalize data
         data = torch.tensor(data, dtype=torch.float32).unsqueeze(0)  # Add batch dimension
@@ -463,7 +468,13 @@ def predict_csv(args_predict):
         doy = doy.to(device)  # Ensure 'doy' tensor is also on the correct device
         # Predict
         with torch.no_grad():
-            prediction = model(data, doy)[0]
+
+            if args_predict["thermal_time_prediction"] is not None:
+                print("yep2")
+                prediction = model(data, doy, thermal_data)[0]
+            else:
+                prediction = model(data, doy)[0]
+
             if args_predict["response"] == "classification":
                 prediction = torch.argmax(prediction, dim=1)
             prediction = prediction.squeeze().item()  # Assuming single prediction

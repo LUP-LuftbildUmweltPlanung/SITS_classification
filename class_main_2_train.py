@@ -11,19 +11,19 @@ from pytorch.train import train_init
 
 #FORCE
 preprocess_params = {
-    "project_name" : "class_tcd_final_Thermal_3y", #Project Name that will be the name of output folder in temp & result subfolder
+    "project_name" : "class_vh_thermal_3y", #Project Name that will be the name of output folder in temp & result subfolder
     "process_folder": "/uge_mount/FORCE/new_struc/process/", # Folder where Data and Results will be processed (will be created if not existing)
-    "aois" : glob.glob(f"/uge_mount/FORCE/new_struc/process/results/_SamplingPoints/uge_tcd_30m_equalized/*.shp"),## reference points shape as single file or file list ## should have YYYY in name
+    "aois" : glob.glob(f"/uge_mount/FORCE/new_struc/process/results/_SamplingPoints/uge_vgh_30m_equalized/*.shp"),## reference points shape as single file or file list ## should have YYYY in name
     "years": None,  ###Oberservation Year (last year of the timeseries), that should be defined for every Point Shapefile - if "None" Years will be extracted from aoi FileName YYYY
     "time_range": ["3", "06-01"],  # [time_range in years, start and end MM-DD for timeseries]
-    "column_name": 'tcd', #column name for response variable in points
+    "column_name": 'vh', #column name for response variable in points
     "Interpolation" : False, ## Classification based on not interpolated Data just possible with Transformer
     "INT_DAY" : 10, ## interpolation time steps
     ###########################################
     ########Advanced Parameters################
     ###########################################
     "force_dir": "/force", # mount directory for FORCE-Datacube - should look like /force_mount/FORCE/C1/L2/..
-    "thermal_time": None, #"/uge_mount/FORCE/new_struc/process/data/gdd/concatenated_gdd_start2015_3035.tif", #set None if not using, take care of starting date from gdd -> class_run.py def(calculate_band_index)
+    "thermal_time": None,#"/uge_mount/FORCE/new_struc/process/data/gdd/concatenated_gdd_start2015_3035.tif", #set None if not using, take care of starting date from gdd -> class_run.py def(calculate_band_index)
     "hold": False,  # if True, FORCE cmd must be closed manually ## recommended for debugging FORCE
     "Sensors": "SEN2A SEN2B",  # LND04 LND05 LND07 LND08 LND09 SEN2A SEN2B,
     "Indices": "BLUE GREEN RED NIR SWIR1 SWIR2 RE1 RE2 RE3 BNIR", # Type: Character list. Valid values: {BLUE,GREEN,RED,NIR,SWIR1,SWIR2,RE1,RE2,RE3,BNIR,NDVI,EVI,NBR,NDTI,ARVI,SAVI,SARVI,TC-BRIGHT,TC-GREEN,TC-WET,TC-DI,NDBI,NDWI,MNDWI,NDMI,NDSI,SMA,kNDVI,NDRE1,NDRE2,CIre,NDVIre1,NDVIre2,NDVIre3,NDVIre1n,NDVIre2n,NDVIre3n,MSRre,MSRren,CCI},
@@ -39,7 +39,7 @@ preprocess_params = {
     ############################################################
     ########Postprocessing Samples for Reference################
     ############################################################
-    "split_train": 0.8,  ### [0-1] for random split | [2010, ..., 2024, ..] for year test split (shapefile folder name)
+    "split_train": 2018,  ### [0-1] for random split | [2010, ..., 2024, ..] for year test split (shapefile folder name)
     "seed": 42,  # seed for train validation split
     "feature_order": ["BLU", "GRN", "RED", "NIR", "SW1", "SW2", "RE1", "RE2", "RE3", "BNR"], # feature order related to FORCE output [x.split('_')[-2]] --> naming convention e.g.: 2022-2023_001-365_HL_TSA_SEN2L_SW2_TSS.tif
     "start_doy_month": None, ### Define start date [YYYY-MM-DD], If "None" DOY will be starting from individual timeseries start
@@ -67,7 +67,7 @@ args_train = {
 
 if __name__ == '__main__':
 
-    #force_sample(preprocess_params) # splits for single domain then goes to next
+    force_sample(preprocess_params) # splits for single domain then goes to next
     train_init(args_train, preprocess_params)
 
 

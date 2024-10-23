@@ -247,6 +247,7 @@ class Trainer():
                     targets /= self.norm_factor_response
                     responses /= self.norm_factor_response
 
+
                 rmse_r2_stats = metric.update_mat(targets,responses)
 
                 # Add MSE and R2 to the `stats` dictionary
