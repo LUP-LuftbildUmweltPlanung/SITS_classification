@@ -40,7 +40,6 @@ def positional_encoding(positions, d_model, max_seq_length, pad_value=Pad_Value)
     angle_rads = positions.unsqueeze(-1).float() * angle_rates  # (batch_size, seq_len, d_model)
 
     #print(angle_rads.shape)
-
     # Apply sin to even indices and cos to odd indices
     pos_encoding = torch.zeros_like(angle_rads)
     pos_encoding[:, :, 0::2] = torch.sin(angle_rads[:, :, 0::2])
@@ -48,8 +47,8 @@ def positional_encoding(positions, d_model, max_seq_length, pad_value=Pad_Value)
     # Zero out positional encodings at padding positions
     mask = positions.eq(pad_value).unsqueeze(-1)
     pos_encoding = pos_encoding.masked_fill(mask, 0)
-    #print(pos_encoding[:, :, 1])
     return pos_encoding
+
 class Encoder(nn.Module):
     ''' A encoder model with self attention mechanism. '''
 
@@ -91,7 +90,8 @@ class Encoder(nn.Module):
             masked_src_thermal = (src_thermal * non_pad_mask.squeeze(-1)).long()
             thermal_pos_encodings = positional_encoding(masked_src_thermal, self.d_model, max_seq_length=10000)
             doy_pos_encodings = positional_encoding(masked_src_pos, self.d_model, max_seq_length=self.n_position)
-
+            #print(thermal_pos_encodings[0,:,0])
+            #print(doy_pos_encodings[0, :, 0])
             enc_output = masked_src_seq + thermal_pos_encodings + doy_pos_encodings
 
         else:
@@ -101,7 +101,6 @@ class Encoder(nn.Module):
             doy_pos_encodings = positional_encoding(masked_src_pos, self.d_model, max_seq_length=self.n_position)
             month_pos_encodings = positional_encoding(masked_src_pos_month, self.d_model, max_seq_length=13)
             enc_output = masked_src_seq + doy_pos_encodings + month_pos_encodings
-
 
 
         for enc_layer in self.layer_stack:

@@ -209,7 +209,6 @@ class Trainer():
             else:
                 loss = F.mse_loss(logprobabilities.squeeze(1),targets)
 
-
             loss.backward()
 
             stats = dict(

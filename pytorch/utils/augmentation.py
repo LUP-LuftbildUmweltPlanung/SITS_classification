@@ -219,6 +219,44 @@ def zero_out_data(X, doy, thermal = None, percentage=5):
     else:
         return X_zeroed, doy_zeroed
 
+
+def remove_data_entries(X, doy, thermal=None, percentage=5):
+    """
+    Removes a random percentage of entries from X, doy, and thermal (if provided).
+
+    Args:
+        X : torch.Tensor
+            Multi-band time series data of shape (sequence_length, features).
+        doy : torch.Tensor
+            Tensor containing the day of the year for each observation of shape (sequence_length,).
+        thermal : torch.Tensor, optional
+            Additional data tensor of shape (sequence_length,).
+        percentage : int, optional
+            Percentage of entries to remove.
+
+    Returns:
+        torch.Tensor, torch.Tensor, torch.Tensor (if thermal is not None)
+            Shortened data tensors.
+    """
+    total_count = X.size(0)
+    remove_count = int(total_count * (percentage / 100.0))
+
+    # Random indices to remove
+    remove_indices = torch.randperm(total_count)[:remove_count]
+
+    # Create a mask of indices to keep
+    mask = torch.ones(total_count, dtype=torch.bool)
+    mask[remove_indices] = False
+
+    # Apply the mask to each tensor
+    X_shortened = X[mask]
+    doy_shortened = doy[mask]
+    if thermal is not None:
+        thermal_shortened = thermal[mask]
+        return X_shortened, doy_shortened, thermal_shortened
+    else:
+        return X_shortened, doy_shortened
+
 def apply_augmentation(X, doy, thermal, p, plotting, time_range):
     """
     Applies augmentation based on a random choice among:
@@ -255,7 +293,8 @@ def apply_augmentation(X, doy, thermal, p, plotting, time_range):
 
         if selected_pattern == 'single':
             # Apply one of the augmentations chosen randomly
-            aug_type = np.random.choice(['scaling', 'day shifting', 'zero out'])
+            #aug_type = np.random.choice(['scaling', 'day shifting', 'zero out'])
+            aug_type = np.random.choice(['zero out'])
             if aug_type == 'scaling':
                 X_aug = apply_scaling(X_aug, doy_aug, time_range, sigma=0.15)
                 method = 'scaling'
@@ -263,11 +302,13 @@ def apply_augmentation(X, doy, thermal, p, plotting, time_range):
                 doy_aug = year_shifting(doy_aug, time_range, shift_range=16)
                 method = 'day shifting'
             else:
-                percentage_to_zero = np.random.randint(5, 40)
+                percentage_to_zero = np.random.randint(5, 60)
                 if thermal_aug is None:
-                    X_aug, doy_aug = zero_out_data(X_aug, doy_aug, percentage=percentage_to_zero)
+                    #X_aug, doy_aug = zero_out_data(X_aug, doy_aug, percentage=percentage_to_zero)
+                    X_aug, doy_aug = remove_data_entries(X_aug, doy_aug, percentage=percentage_to_zero)
                 else:
-                    X_aug, doy_aug, thermal_aug = zero_out_data(X_aug, doy_aug, thermal_aug, percentage=percentage_to_zero)
+                    #X_aug, doy_aug, thermal_aug = zero_out_data(X_aug, doy_aug, thermal_aug, percentage=percentage_to_zero)
+                    X_aug, doy_aug, thermal_aug = remove_data_entries(X_aug, doy_aug, thermal_aug,percentage=percentage_to_zero)
                 method = f'zero out {percentage_to_zero}%'
 
         elif selected_pattern == 'double':
@@ -283,21 +324,24 @@ def apply_augmentation(X, doy, thermal, p, plotting, time_range):
                     doy_aug = year_shifting(doy_aug, time_range, shift_range=16)
                     methods.append('day shifting')
                 else:
-                    percentage_to_zero = np.random.randint(5, 71)
+                    percentage_to_zero = np.random.randint(5, 60)
                     if thermal_aug is None:
-                        X_aug, doy_aug = zero_out_data(X_aug, doy_aug, percentage=percentage_to_zero)
+                        #X_aug, doy_aug = zero_out_data(X_aug, doy_aug, percentage=percentage_to_zero)
+                        X_aug, doy_aug = remove_data_entries(X_aug, doy_aug, percentage=percentage_to_zero)
                     else:
-                        X_aug, doy_aug, thermal_aug = zero_out_data(X_aug, doy_aug, thermal_aug, percentage=percentage_to_zero)
+                        #X_aug, doy_aug, thermal_aug = zero_out_data(X_aug, doy_aug, thermal_aug, percentage=percentage_to_zero)
+                        X_aug, doy_aug, thermal_aug = remove_data_entries(X_aug, doy_aug, thermal_aug, percentage=percentage_to_zero)
                     methods.append(f'zero out {percentage_to_zero}%')
             method = ' & '.join(methods)
 
         else:
             # Apply all three augmentations, ensuring zero out happens first
-            percentage_to_zero = np.random.randint(5, 71)
+            percentage_to_zero = np.random.randint(5, 60)
             X_aug = apply_scaling(X_aug, doy_aug, time_range, sigma=0.15)
             doy_aug = year_shifting(doy_aug, time_range, shift_range=16)
             if thermal_aug is None:
-                X_aug, doy_aug = zero_out_data(X_aug, doy_aug, percentage=percentage_to_zero)
+                #X_aug, doy_aug = zero_out_data(X_aug, doy_aug, percentage=percentage_to_zero)
+                X_aug, doy_aug = remove_data_entries(X_aug, doy_aug, percentage=percentage_to_zero)
             else:
                 X_aug, doy_aug, thermal_aug = zero_out_data(X_aug, doy_aug, thermal_aug, percentage=percentage_to_zero)
             method = 'scaling & day shifting & zero out'
