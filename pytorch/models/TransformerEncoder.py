@@ -103,6 +103,7 @@ class TransformerEncoder(ClassificationModel):
 
     def forward(self, x, doy, thermal = None):
         logits, *_ = self._logits(x, doy, thermal)
+
         if self.response == "classification":
             logprobabilities = F.log_softmax(logits, dim=-1)
         elif self.response == "regression_relu":

@@ -436,11 +436,14 @@ def predict_csv(args_predict):
     metadata_df = pd.read_csv(meta_path)
 
     # Prepare a DataFrame to hold all predictions
-    predictions_df = pd.DataFrame(columns=['x', 'y', 'label', 'prediction'])
+    predictions_df = pd.DataFrame(columns=['x', 'y', 'label', 'prediction','aoi'])
 
     # Iterate over CSV files
     for idx, row in tqdm(metadata_df.iterrows(), total=metadata_df.shape[0]):
     #for idx, row in metadata_df.iterrows():
+        #if (row['aoi'] != "duisburg_2022_extract.shp") and (row['aoi'] != "essen_2022_extract.shp"):
+         #   continue
+
         csv_file_path = os.path.join(folder_path, f"{row['global_idx']}.csv")
         if not os.path.exists(csv_file_path):
             continue  # Skip if file doesn't exist
@@ -470,8 +473,8 @@ def predict_csv(args_predict):
         with torch.no_grad():
 
             if args_predict["thermal_time_prediction"] is not None:
-                print("yep2")
                 prediction = model(data, doy, thermal_data)[0]
+                #print(prediction)
             else:
                 prediction = model(data, doy)[0]
 
@@ -491,7 +494,8 @@ def predict_csv(args_predict):
                 'x': row['x'],
                 'y': row['y'],
                 'label': pixel_df['label'].iloc[0],  # Assuming label is constant
-                'prediction': prediction
+                'prediction': prediction,
+                'aoi': row['aoi']
             }])
         # Use concat to add the new row to predictions_df
         predictions_df = pd.concat([predictions_df, new_row_df], ignore_index=True)

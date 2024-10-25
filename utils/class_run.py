@@ -148,7 +148,7 @@ def sample_to_ref_sepfiles(preprocess_params, **kwargs):
                     resp_row = resp_row[1].values
                     coord_row_data = coord_row[1].values
 
-                    if np.all(np.isnan(feat_row)) or np.all(np.isnan(resp_row)):
+                    if np.any(np.isnan(feat_row)) or np.all(np.isnan(resp_row)):
                         nan_idx += 1
                         continue  # Skip the current iteration and move to the next array
                     # If feat_row corresponds to just one timestep, skip the iteration

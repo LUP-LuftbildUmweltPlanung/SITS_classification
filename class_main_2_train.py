@@ -11,7 +11,7 @@ from pytorch.train import train_init
 
 #FORCE
 preprocess_params = {
-    "project_name" : "class_vh_thermal_3y", #Project Name that will be the name of output folder in temp & result subfolder
+    "project_name" : "class_vh_thermal_3y_2022DElo_JoThermalZNoAug", #Project Name that will be the name of output folder in temp & result subfolder
     "process_folder": "/uge_mount/FORCE/new_struc/process/", # Folder where Data and Results will be processed (will be created if not existing)
     "aois" : glob.glob(f"/uge_mount/FORCE/new_struc/process/results/_SamplingPoints/uge_vgh_30m_equalized/*.shp"),## reference points shape as single file or file list ## should have YYYY in name
     "years": None,  ###Oberservation Year (last year of the timeseries), that should be defined for every Point Shapefile - if "None" Years will be extracted from aoi FileName YYYY
@@ -39,7 +39,7 @@ preprocess_params = {
     ############################################################
     ########Postprocessing Samples for Reference################
     ############################################################
-    "split_train": 2018,  ### [0-1] for random split | [2010, ..., 2024, ..] for year test split (shapefile folder name)
+    "split_train": 2022,  ### [0-1] for random split | [2010, ..., 2024, ..] for year test split (shapefile folder name)
     "seed": 42,  # seed for train validation split
     "feature_order": ["BLU", "GRN", "RED", "NIR", "SW1", "SW2", "RE1", "RE2", "RE3", "BNR"], # feature order related to FORCE output [x.split('_')[-2]] --> naming convention e.g.: 2022-2023_001-365_HL_TSA_SEN2L_SW2_TSS.tif
     "start_doy_month": None, ### Define start date [YYYY-MM-DD], If "None" DOY will be starting from individual timeseries start
