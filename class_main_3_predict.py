@@ -23,7 +23,7 @@ args_predict = {
     'reference_folder' : "/uge_mount/FORCE/new_struc/process/results/_SITSrefdata/class_vh_thermal_3y_2022DElo_JoThermalZNoAug/",#None, #Set Path if you want to predict the Test CSV File /path/to/_SITSrefdata/projectname
     'probability' : False, # just gets recognized if classification
     'chunksize': 6000,  # 5years ts -> 2000
-    'thermal_time_prediction': "/uge_mount/FORCE/new_struc/process/data/gdd/concatenated_gdd_start2015_3035.tif", #set None if not using
+    'thermal_time_prediction': None,#"/uge_mount/FORCE/new_struc/process/data/gdd/concatenated_gdd_start2015_3035.tif", #set None if not using
     'force_dir': "/force",
     }
 
