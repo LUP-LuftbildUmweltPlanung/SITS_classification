@@ -11,7 +11,7 @@ from pytorch.train import train_init
 
 #FORCE
 preprocess_params = {
-    "project_name" : "class_vh_thermal_3y_2022DElo_JoThermalZNoAug", #Project Name that will be the name of output folder in temp & result subfolder
+    "project_name" : "class_vh_thermal_3y_2022DElo_JoThermalJoAug", #Project Name that will be the name of output folder in temp & result subfolder
     "process_folder": "/uge_mount/FORCE/new_struc/process/", # Folder where Data and Results will be processed (will be created if not existing)
     "aois" : glob.glob(f"/uge_mount/FORCE/new_struc/process/results/_SamplingPoints/uge_vgh_30m_equalized/*.shp"),## reference points shape as single file or file list ## should have YYYY in name
     "years": None,  ###Oberservation Year (last year of the timeseries), that should be defined for every Point Shapefile - if "None" Years will be extracted from aoi FileName YYYY
@@ -23,7 +23,7 @@ preprocess_params = {
     ########Advanced Parameters################
     ###########################################
     "force_dir": "/force", # mount directory for FORCE-Datacube - should look like /force_mount/FORCE/C1/L2/..
-    "thermal_time": None,#"/uge_mount/FORCE/new_struc/process/data/gdd/concatenated_gdd_start2015_3035.tif", #set None if not using, take care of starting date from gdd -> class_run.py def(calculate_band_index)
+    "thermal_time": "/uge_mount/FORCE/new_struc/process/data/gdd/concatenated_gdd_start2015_3035.tif", #set None if not using, take care of starting date from gdd -> class_run.py def(calculate_band_index)
     "hold": False,  # if True, FORCE cmd must be closed manually ## recommended for debugging FORCE
     "Sensors": "SEN2A SEN2B",  # LND04 LND05 LND07 LND08 LND09 SEN2A SEN2B,
     "Indices": "BLUE GREEN RED NIR SWIR1 SWIR2 RE1 RE2 RE3 BNIR", # Type: Character list. Valid values: {BLUE,GREEN,RED,NIR,SWIR1,SWIR2,RE1,RE2,RE3,BNIR,NDVI,EVI,NBR,NDTI,ARVI,SAVI,SARVI,TC-BRIGHT,TC-GREEN,TC-WET,TC-DI,NDBI,NDWI,MNDWI,NDMI,NDSI,SMA,kNDVI,NDRE1,NDRE2,CIre,NDVIre1,NDVIre2,NDVIre3,NDVIre1n,NDVIre2n,NDVIre3n,MSRre,MSRren,CCI},
@@ -67,7 +67,7 @@ args_train = {
 
 if __name__ == '__main__':
 
-    force_sample(preprocess_params) # splits for single domain then goes to next
+    #force_sample(preprocess_params) # splits for single domain then goes to next
     train_init(args_train, preprocess_params)
 
 
