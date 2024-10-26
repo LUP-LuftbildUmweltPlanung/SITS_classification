@@ -90,7 +90,7 @@ def time_warp(X, sigma=0.001):
         return torch.from_numpy(np.interp(warped_indices, original_indices, X.numpy()))
 
 
-def year_shifting(doy, time_range, shift_range=16):
+def year_shifting(doy, time_range, shift_range=16, thermal=None):
     """
     Shifts the day of year (DOY) randomly within a specified range for each year.
 
@@ -119,14 +119,43 @@ def year_shifting(doy, time_range, shift_range=16):
 
     # Apply shifts to each year and clamp within the min and max DOY for each year
     shifted_doy = torch.zeros_like(doy)
+
+    if thermal is not None:
+        adjusted_thermal = thermal.clone()
+        #print(adjusted_thermal)
+
     for year, min_doy_year, max_doy_year, shift in zip(unique_years, min_doy_per_year, max_doy_per_year, shifts):
         year_mask = years == year
-        shifted_doy[year_mask] = torch.clamp(doy[year_mask] + shift, min_doy_year, max_doy_year)
+        # Shift DOY and clamp within the year
+        shifted_doy_year = torch.clamp(doy[year_mask] + shift, min_doy_year, max_doy_year)
+        shifted_doy[year_mask] = shifted_doy_year
+
+        if thermal is not None:
+            # Randomly choose +400 or -400 as maximum adjustment
+            sign = torch.randint(0, 2, (1,)).item() * 2 - 1  # Results in -1 or +1
+            max_adjustment = sign * 200
+
+            # Compute the proportion of the year passed after shifting
+            length_of_year = max_doy_year - min_doy_year + 1  # Typically 365 days
+            proportion_of_year = (shifted_doy_year - min_doy_year).float() / length_of_year
+            # Compute the adjustment
+            adjustment = proportion_of_year * max_adjustment
+            # Add the adjustment to the existing thermal values
+            adjusted_thermal[year_mask] += adjustment
+
+            # Since adjustments are designed to not overshoot zero, negative values are unlikely
+            # But to be safe, set any small negative values to a small positive number close to zero
+            adjusted_thermal[adjusted_thermal < 0] = adjusted_thermal[adjusted_thermal < 0].abs() * 1e+2
+            # Convert adjusted thermal values to integers
 
     # Clamp again to ensure overall min and max DOY are respected
     shifted_doy = torch.clamp(shifted_doy, min_doy, max_doy)
     shifted_doy = shifted_doy - doy_start
-    return shifted_doy
+    if thermal is not None:
+        adjusted_thermal = adjusted_thermal.round().long()
+        return shifted_doy, adjusted_thermal
+    else:
+        return shifted_doy
 
 
 
@@ -293,13 +322,16 @@ def apply_augmentation(X, doy, thermal, p, plotting, time_range):
 
         if selected_pattern == 'single':
             # Apply one of the augmentations chosen randomly
-            #aug_type = np.random.choice(['scaling', 'day shifting', 'zero out'])
-            aug_type = np.random.choice(['zero out'])
+            aug_type = np.random.choice(['scaling', 'day shifting', 'zero out'])
+            #aug_type = np.random.choice(['zero out'])
             if aug_type == 'scaling':
                 X_aug = apply_scaling(X_aug, doy_aug, time_range, sigma=0.15)
                 method = 'scaling'
             elif aug_type == 'day shifting':
-                doy_aug = year_shifting(doy_aug, time_range, shift_range=16)
+                if thermal_aug is None:
+                    doy_aug = year_shifting(doy_aug, time_range, shift_range=16)
+                else:
+                    doy_aug, thermal_aug = year_shifting(doy_aug, time_range, shift_range=16, thermal=thermal_aug)
                 method = 'day shifting'
             else:
                 percentage_to_zero = np.random.randint(5, 60)
@@ -321,7 +353,10 @@ def apply_augmentation(X, doy, thermal, p, plotting, time_range):
                     X_aug = apply_scaling(X_aug, doy_aug, time_range, sigma=0.15)
                     methods.append('scaling')
                 elif aug == 'day shifting':
-                    doy_aug = year_shifting(doy_aug, time_range, shift_range=16)
+                    if thermal_aug is None:
+                        doy_aug = year_shifting(doy_aug, time_range, shift_range=16)
+                    else:
+                        doy_aug, thermal_aug = year_shifting(doy_aug, time_range, shift_range=16, thermal=thermal_aug)
                     methods.append('day shifting')
                 else:
                     percentage_to_zero = np.random.randint(5, 60)
@@ -338,12 +373,15 @@ def apply_augmentation(X, doy, thermal, p, plotting, time_range):
             # Apply all three augmentations, ensuring zero out happens first
             percentage_to_zero = np.random.randint(5, 60)
             X_aug = apply_scaling(X_aug, doy_aug, time_range, sigma=0.15)
-            doy_aug = year_shifting(doy_aug, time_range, shift_range=16)
+            if thermal_aug is None:
+                doy_aug = year_shifting(doy_aug, time_range, shift_range=16)
+            else:
+                doy_aug, thermal_aug = year_shifting(doy_aug, time_range, shift_range=16, thermal=thermal_aug)
             if thermal_aug is None:
                 #X_aug, doy_aug = zero_out_data(X_aug, doy_aug, percentage=percentage_to_zero)
                 X_aug, doy_aug = remove_data_entries(X_aug, doy_aug, percentage=percentage_to_zero)
             else:
-                X_aug, doy_aug, thermal_aug = zero_out_data(X_aug, doy_aug, thermal_aug, percentage=percentage_to_zero)
+                X_aug, doy_aug, thermal_aug = remove_data_entries(X_aug, doy_aug, thermal_aug, percentage=percentage_to_zero)
             method = 'scaling & day shifting & zero out'
 
     else:

@@ -11,7 +11,7 @@ from pytorch.train import train_init
 
 #FORCE
 preprocess_params = {
-    "project_name" : "class_vh_thermal_3y_2022DElo_JoThermalZNoAug", #Project Name that will be the name of output folder in temp & result subfolder
+    "project_name" : "class_vh_thermal_3y_2022DElo_JoThermalJoAug", #Project Name that will be the name of output folder in temp & result subfolder
     "process_folder": "/uge_mount/FORCE/new_struc/process/", # Folder where Data and Results will be processed (will be created if not existing)
     "aois" : glob.glob(f"/uge_mount/FORCE/new_struc/process/results/_SamplingPoints/uge_vgh_30m_equalized/*.shp"),## reference points shape as single file or file list ## should have YYYY in name
     "years": None,  ###Oberservation Year (last year of the timeseries), that should be defined for every Point Shapefile - if "None" Years will be extracted from aoi FileName YYYY
