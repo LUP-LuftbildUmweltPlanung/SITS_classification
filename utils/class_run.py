@@ -26,7 +26,8 @@ def force_sample(preprocess_params):
     time_range = preprocess_params["time_range"]
     preprocess_params["date_ranges"] = [f"{year - int(time_range[0])}-{time_range[1]} {year}-{time_range[1]}" for year in preprocess_params["years"]]
 
-    force_class(preprocess_params)
+    if preprocess_params["tmp"] == True:
+        force_class(preprocess_params)
     sample_to_ref_sepfiles(preprocess_params) # splits for single domain then goes to next
 
 
@@ -126,7 +127,6 @@ def sample_to_ref_sepfiles(preprocess_params, **kwargs):
             feature = pd.read_csv(feature_file, sep=' ', header=None)
             response = pd.read_csv(response_file, sep=' ', header=None)
             coordinates = pd.read_csv(coordinates_file, sep=' ', header=None, names=['x', 'y'])
-
             tile_folder = os.path.basename(response_file)[9:-4] # X*_Y* force tile folder
             raster_path = glob.glob(f"{os.path.dirname(response_file)}/{tile_folder}/*.tif")[0]
 
@@ -148,7 +148,7 @@ def sample_to_ref_sepfiles(preprocess_params, **kwargs):
                     resp_row = resp_row[1].values
                     coord_row_data = coord_row[1].values
 
-                    if np.any(np.isnan(feat_row)) or np.all(np.isnan(resp_row)):
+                    if np.all(np.isnan(feat_row)) or np.all(np.isnan(resp_row)):
                         nan_idx += 1
                         continue  # Skip the current iteration and move to the next array
                     # If feat_row corresponds to just one timestep, skip the iteration
@@ -195,7 +195,6 @@ def sample_to_ref_sepfiles(preprocess_params, **kwargs):
                             pixel_df[preprocess_params["feature_order"]] = pixel_df[preprocess_params["feature_order"]].interpolate(method='linear', limit_direction='both',axis=0)
 
                     output_file_path = os.path.join(output_folder_sep, f"{global_idx}.csv")
-
                     pixel_df.to_csv(output_file_path, index=False)
 
                     temp_df = {'global_idx': global_idx, 'x': coord_row_data[0], 'y': coord_row_data[1], 'aoi': folder_name}
@@ -214,26 +213,26 @@ def sample_to_ref_sepfiles(preprocess_params, **kwargs):
             # Getting list of all .csv files in the output_folder
             csv_files = [f for f in os.listdir(output_folder_sep) if f.endswith(".csv")]
 
-            if preprocess_params["split_train"] <= 1:
-                # Shuffle the list to ensure random distribution of files
-                random.seed(preprocess_params["seed"])  # Set the seed before shuffling
-                random.shuffle(csv_files)
-                # Calculating split indices
-                num_files = len(csv_files)
-                train_idx = int(num_files * preprocess_params["split_train"])
-                # Splitting files
-                train_files = csv_files[:train_idx]
-                test_files = csv_files[train_idx:]
-                # Moving files
-                move_files(output_folder_sep, train_files, train_folder)
-                # move_files(valid_files, valid_folder)
-                move_files(output_folder_sep, test_files, test_folder)
+            # if preprocess_params["split_train"] <= 1:
+            #     # Shuffle the list to ensure random distribution of files
+            #     random.seed(preprocess_params["seed"])  # Set the seed before shuffling
+            #     random.shuffle(csv_files)
+            #     # Calculating split indices
+            #     num_files = len(csv_files)
+            #     train_idx = int(num_files * preprocess_params["split_train"])
+            #     # Splitting files
+            #     train_files = csv_files[:train_idx]
+            #     test_files = csv_files[train_idx:]
+            #     # Moving files
+            #     move_files(output_folder_sep, train_files, train_folder)
+            #     # move_files(valid_files, valid_folder)
+            #     move_files(output_folder_sep, test_files, test_folder)
+            # else:
+            if (folder_name.split("_")[0] == preprocess_params["split_train"]) or ((folder_name.split("_")[0] == "duisburg") and (related_year != 2020)) or ((folder_name.split("_")[0] == "essen") and (related_year != 2020)):
+            #if related_year == preprocess_params["split_train"]:
+                move_files(output_folder_sep, csv_files, test_folder)
             else:
-                #if (related_year == preprocess_params["split_train"]) or (folder_name.split("_")[0] == "duisburg") or (folder_name.split("_")[0] == "essen"):
-                if related_year == preprocess_params["split_train"]:
-                    move_files(output_folder_sep, csv_files, test_folder)
-                else:
-                    move_files(output_folder_sep, csv_files, train_folder)
+                move_files(output_folder_sep, csv_files, train_folder)
 
     temp_df = pd.DataFrame(coordinates_list)
     temp_df.to_csv(os.path.join(output_folder, f"meta.csv"), index=False)
