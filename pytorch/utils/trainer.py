@@ -52,7 +52,7 @@ class Trainer():
         self.model = model
         self.checkpoint_every_n_epochs = checkpoint_every_n_epochs
         self.early_stopping_smooth_period = 5
-        self.early_stopping_patience = 4
+        self.early_stopping_patience = 6
         self.not_improved_epochs=0
         self.trial = trial
         #self.early_stopping_metric="kappa"
@@ -208,6 +208,12 @@ class Trainer():
                 loss = F.nll_loss(logprobabilities, targets)
             else:
                 loss = F.mse_loss(logprobabilities.squeeze(1),targets)
+                #loss = F.huber_loss(logprobabilities.squeeze(1), targets, delta=10)
+                # Compute weights
+                # min_weight = 0.4  # Adjust as needed
+                # max_weight = 1.0
+                # weights = min_weight + (max_weight - min_weight) * (torch.abs(targets - 0.5) / 0.5)
+                # loss = (weights * loss).mean()
 
             loss.backward()
 
@@ -292,6 +298,12 @@ class Trainer():
                     loss = F.nll_loss(logprobabilities, targets)
                 else:
                     loss = F.mse_loss(logprobabilities.squeeze(1),targets)
+                    #loss = F.huber_loss(logprobabilities.squeeze(1),targets,delta=10)
+                    # Compute weights
+                    # min_weight = 0.4  # Adjust as needed
+                    # max_weight = 1.0
+                    # weights = min_weight + (max_weight - min_weight) * (torch.abs(targets - 0.5) / 0.5)
+                    # loss = (weights * loss).mean()
 
                 stats = dict(
                     loss=loss,

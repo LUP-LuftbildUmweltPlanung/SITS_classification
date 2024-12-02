@@ -33,7 +33,11 @@ def positional_encoding(positions, d_model, max_seq_length, pad_value=Pad_Value)
     ''' Compute positional encodings for arbitrary positions. '''
     # positions: tensor of shape (batch_size, seq_len)
     # returns: tensor of shape (batch_size, seq_len, d_model)
-
+    #print(max_seq_length)
+    #scale_factor = max_seq_length / 10000
+    #positions = positions.float() / scale_factor
+    #max_seq_length = 10000
+    
     angle_rates = 1 / torch.pow(max_seq_length, (2 * (torch.arange(d_model) // 2).float()) / d_model)
     if positions.is_cuda:
         angle_rates = angle_rates.cuda()
@@ -88,6 +92,7 @@ class Encoder(nn.Module):
 
         if src_thermal is not None:
             masked_src_thermal = (src_thermal * non_pad_mask.squeeze(-1)).long()
+            #print(masked_src_thermal[0,:])
             thermal_pos_encodings = positional_encoding(masked_src_thermal, self.d_model, max_seq_length=10000)
             doy_pos_encodings = positional_encoding(masked_src_pos, self.d_model, max_seq_length=self.n_position)
             #print(thermal_pos_encodings[0,:,0])

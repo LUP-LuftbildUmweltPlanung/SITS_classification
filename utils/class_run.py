@@ -126,7 +126,6 @@ def sample_to_ref_sepfiles(preprocess_params, **kwargs):
             feature = pd.read_csv(feature_file, sep=' ', header=None)
             response = pd.read_csv(response_file, sep=' ', header=None)
             coordinates = pd.read_csv(coordinates_file, sep=' ', header=None, names=['x', 'y'])
-
             tile_folder = os.path.basename(response_file)[9:-4] # X*_Y* force tile folder
             raster_path = glob.glob(f"{os.path.dirname(response_file)}/{tile_folder}/*.tif")[0]
 
@@ -148,7 +147,7 @@ def sample_to_ref_sepfiles(preprocess_params, **kwargs):
                     resp_row = resp_row[1].values
                     coord_row_data = coord_row[1].values
 
-                    if np.any(np.isnan(feat_row)) or np.all(np.isnan(resp_row)):
+                    if np.all(np.isnan(feat_row)) or np.all(np.isnan(resp_row)):
                         nan_idx += 1
                         continue  # Skip the current iteration and move to the next array
                     # If feat_row corresponds to just one timestep, skip the iteration
@@ -195,7 +194,6 @@ def sample_to_ref_sepfiles(preprocess_params, **kwargs):
                             pixel_df[preprocess_params["feature_order"]] = pixel_df[preprocess_params["feature_order"]].interpolate(method='linear', limit_direction='both',axis=0)
 
                     output_file_path = os.path.join(output_folder_sep, f"{global_idx}.csv")
-
                     pixel_df.to_csv(output_file_path, index=False)
 
                     temp_df = {'global_idx': global_idx, 'x': coord_row_data[0], 'y': coord_row_data[1], 'aoi': folder_name}
@@ -229,7 +227,26 @@ def sample_to_ref_sepfiles(preprocess_params, **kwargs):
                 # move_files(valid_files, valid_folder)
                 move_files(output_folder_sep, test_files, test_folder)
             else:
-                #if (related_year == preprocess_params["split_train"]) or (folder_name.split("_")[0] == "duisburg") or (folder_name.split("_")[0] == "essen"):
+            # if preprocess_params["split_train"] == "2022":
+            #     if (folder_name.split("_")[0] == "duisburg") or (folder_name.split("_")[0] == "essen") or (related_year == 2022):
+            #     #if related_year == preprocess_params["split_train"]:
+            #         move_files(output_folder_sep, csv_files, test_folder)
+            #     else:
+            #         move_files(output_folder_sep, csv_files, train_folder)
+            # elif preprocess_params["split_train"] == "d":
+            #     if (folder_name.split("_")[0] == "duisburg") or ((folder_name.split("_")[0] == "essen") and (related_year != 2020)):
+            #     #if related_year == preprocess_params["split_train"]:
+            #         move_files(output_folder_sep, csv_files, test_folder)
+            #     else:
+            #         move_files(output_folder_sep, csv_files, train_folder)
+            # elif preprocess_params["split_train"] == "e":
+            #     if ((folder_name.split("_")[0] == "duisburg") and (related_year != 2020)) or (folder_name.split("_")[0] == "essen"):
+            #     #if related_year == preprocess_params["split_train"]:
+            #         move_files(output_folder_sep, csv_files, test_folder)
+            #     else:
+            #         move_files(output_folder_sep, csv_files, train_folder)
+            #else:
+                #if (folder_name.split("_")[0] == preprocess_params["split_train"]) or ((folder_name.split("_")[0] == "duisburg") and (related_year != 2020)) or ((folder_name.split("_")[0] == "essen") and (related_year != 2020)):
                 if related_year == preprocess_params["split_train"]:
                     move_files(output_folder_sep, csv_files, test_folder)
                 else:
