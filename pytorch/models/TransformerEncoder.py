@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 import numpy as np
 def convert_tensor_doy_to_month(doy_tensor):
     # Starting date is October 1, 2015
-    start_date = datetime(2015, 6, 1)
+    start_date = datetime(1980, 1, 1)
     # Define a function to convert scalar days to month index
     def day_to_month(day):
         if day == 0:  # Assuming '0' is used for padding and should remain 0

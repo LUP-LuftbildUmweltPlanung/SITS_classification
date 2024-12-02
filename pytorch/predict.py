@@ -32,7 +32,8 @@ def predict(args_predict):
 
     assert (preprocess_params["thermal_time"] is None and args_predict["thermal_time_prediction"] is None) or \
            (preprocess_params["thermal_time"] is not None and args_predict["thermal_time_prediction"] is not None), "Different Positional Encoding used for Training and Prediction"
-
+    if args_predict["thermal_time_prediction"] is not None:
+        print("Predicting with Thermal Time!")
     if args_predict["years"] == None:
         preprocess_params["years"] = [int(re.search(r'(\d{4})', os.path.basename(f)).group(1)) for f in preprocess_params["aois"] if re.search(r'(\d{4})', os.path.basename(f))]
     else:
@@ -52,6 +53,51 @@ def predict(args_predict):
     if args_predict["reference_folder"] is None:
         force_class(preprocess_params)
     predict_init(args_predict)
+
+
+def end_padding(batch_tensor, doy_tensor, thermal_tensor=None):
+    ###################################################################################
+    ###################################################################################
+    # Get a mask of non-zero values across the features for each time step
+    non_zero_mask_pad = torch.any(batch_tensor != 0, dim=1)  # Shape: [batch_size, seq_len]
+    # Convert the boolean mask to integers for sorting (True -> 1, False -> 0)
+    # Count the number of non-zero time steps for each sample
+    non_zero_counts = non_zero_mask_pad.sum(dim=1)  # Shape: [batch_size]
+    # Get indices that sort non-zero time steps to the front
+    _, indices = torch.sort(non_zero_mask_pad.int(), descending=True, dim=1)  # Shape: [batch_size, seq_len]
+    # Expand indices to match the dimensions of batch_tensor for gathering
+    indices_expanded = indices.unsqueeze(1).expand(-1, batch_tensor.size(1),
+                                                   -1)  # Shape: [batch_size, features, seq_len]
+    # Rearrange batch_tensor to move zeros to the end along the sequence dimension
+    batch_tensor = torch.gather(batch_tensor, dim=2, index=indices_expanded)
+    # Rearrange doy_tensor and thermal_tensor similarly
+    doy_tensor = torch.gather(doy_tensor, dim=1, index=indices)
+    # Now, set the padding positions in doy_tensor and thermal_tensor to zeros
+    batch_size, seq_len = doy_tensor.shape
+    device = doy_tensor.device
+    # Create a tensor of sequence indices
+    seq_indices = torch.arange(seq_len, device=device).unsqueeze(0).expand(batch_size,
+                                                                           -1)  # Shape: [batch_size, seq_len]
+    # Expand non_zero_counts to match seq_len
+    non_zero_counts_expanded = non_zero_counts.unsqueeze(1).expand(-1, seq_len)  # Shape: [batch_size, seq_len]
+    # Create a mask where positions beyond non_zero_counts are padding positions
+    padding_mask = seq_indices >= non_zero_counts_expanded  # Shape: [batch_size, seq_len]
+    # Set the padding positions in doy_tensor and thermal_tensor to zeros
+    doy_tensor[padding_mask] = 0  # Use your desired padding value if different
+    if thermal_tensor is not None:
+        thermal_tensor = torch.gather(thermal_tensor, dim=1, index=indices)
+        thermal_tensor[padding_mask] = 0  # Use your desired padding value if different
+    ###################################################################################
+    ###################################################################################
+    # Remove time steps where all features are zero
+    # Requirement Sample Size 1
+    # non_zero_mask = torch.any(batch_tensor != 0, dim=1)  # Shape: [1, seq_len]
+    # non_zero_mask = non_zero_mask.squeeze(0)  # Shape: [seq_len]
+    # batch_tensor = batch_tensor[:, :, non_zero_mask]
+    # doy_tensor = doy_tensor[:, non_zero_mask]
+    # if thermal_tensor is not None:
+    #     thermal_tensor = thermal_tensor[:, non_zero_mask]
+    return batch_tensor, doy_tensor, thermal_tensor
 
 
 def mosaic_rasters(input_pattern, output_filename):
@@ -281,9 +327,11 @@ def predict_singlegrid(model, tiles, args_predict):
             non_zero_mask = np.any(batch != 0, axis=(1, 2))
             doy = np.array(doy_single)
             doy = np.tile(doy, (batch.shape[0], 1))
-
+            cls = 1
+            if args_predict["response"] == "classification":
+                cls = len(args_predict["classes_lst"])
             if not np.any(non_zero_mask):
-                batch_predictions = torch.full((batch.shape[0], 1), -9999, dtype=torch.float32, device=device)
+                batch_predictions = torch.full((batch.shape[0], cls), -9999, dtype=torch.float32, device=device)
             else:
                 batch_non_zero = batch[non_zero_mask]
                 doy_non_zero = doy[non_zero_mask]
@@ -292,8 +340,10 @@ def predict_singlegrid(model, tiles, args_predict):
                 if thermal_dataset is not None:
                     batch_thermal = batch_thermal[non_zero_mask]
                     thermal_tensor = torch.tensor(batch_thermal, dtype=torch.long, device=device)
+                    batch_tensor, doy_tensor, thermal_tensor = end_padding(batch_tensor, doy_tensor, thermal_tensor)
                     predictions_non_zero = model(batch_tensor, doy_tensor, thermal_tensor)[0]
                 else:
+                    batch_tensor, doy_tensor, _ = end_padding(batch_tensor, doy_tensor)
                     predictions_non_zero = model(batch_tensor, doy_tensor,thermal = None)[0]
 
                 # Handle normalization response factor
@@ -442,7 +492,7 @@ def predict_csv(args_predict):
     for idx, row in tqdm(metadata_df.iterrows(), total=metadata_df.shape[0]):
     #for idx, row in metadata_df.iterrows():
         #if (row['aoi'] != "duisburg_2022_extract.shp") and (row['aoi'] != "essen_2022_extract.shp"):
-         #   continue
+            #continue
 
         csv_file_path = os.path.join(folder_path, f"{row['global_idx']}.csv")
         if not os.path.exists(csv_file_path):
@@ -471,7 +521,6 @@ def predict_csv(args_predict):
         doy = doy.to(device)  # Ensure 'doy' tensor is also on the correct device
         # Predict
         with torch.no_grad():
-
             if args_predict["thermal_time_prediction"] is not None:
                 prediction = model(data, doy, thermal_data)[0]
                 #print(prediction)

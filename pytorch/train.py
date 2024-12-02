@@ -11,6 +11,7 @@ sys.path.append("./models")
 
 import numpy as np
 import torch
+import random
 
 from pathlib import Path
 
@@ -74,6 +75,15 @@ def train_init(args_train, preprocess_params):
 
 def train(trial,args_train):
 
+    if args_train['seed'] is not None:
+        print("setting random seed for cuda, numpy and random to " + str(args_train['seed']))
+        os.environ['PYTHONHASHSEED'] = str(args_train['seed'])
+        random.seed(args_train['seed'])
+        torch.manual_seed(args_train['seed'])
+        torch.cuda.manual_seed(args_train['seed'])
+        np.random.seed(args_train['seed'])
+        #torch.random.manual_seed(args_train['seed'])
+
     hw_init_logs_file = args_train['store'] + '/' + args_train['model'] + '/hw_monitor/hw_monitor_init.csv'
     # Instantiate monitor with a 0.drive_name1-second delay between updates
     hwmon_i = HWMonitor(0.1, hw_init_logs_file, args_train["sdb1"])
@@ -108,7 +118,6 @@ def train(trial,args_train):
     hwmon_i.stop()
 
     #selected_size = int((args['partition'] / 100.0) * len(ref_dataset))
-    torch.manual_seed(args_train['seed'])
     selected_size = int(args_train['partition']*len(ref_dataset)/100.0)
     print("selected_size="+str(selected_size))
 
@@ -232,11 +241,6 @@ def prepare_dataset(args):
     if args['response'].startswith("regression"):
         args['classes_lst'] = [0]
     #ImbalancedDatasetSampler
-
-    print("setting random seed to "+str(args['seed']))
-    np.random.seed(args['seed'])
-    if args['seed'] is not None:
-        torch.random.manual_seed(args['seed'])
 
     ref_dataset = Dataset(root=args['data_root'], classes=args['classes_lst'], seed=args['seed'], response=args['response'],
                           norm=args['norm_factor_features'], norm_response = args['norm_factor_response'], thermal = args["thermal_time"])

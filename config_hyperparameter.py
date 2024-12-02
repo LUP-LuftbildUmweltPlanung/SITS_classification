@@ -27,7 +27,7 @@ def hyperparameter_config(model):
             "warmup": 1000,
             'partition': 100,  # partition of whole reference data
             'norm_factor_features': 1e-4,
-            'norm_factor_response': None,# "log10", #Response Scaling will be done after Caching, Should be None for Classification. Can be a Value e.g. 1e-3, None or "log10"
+            'norm_factor_response': 10,#1e-1,# "log10", #Response Scaling will be done after Caching, Should be None for Classification. Can be a Value e.g. 1e-3, None or "log10"
             ## take cre for norm_factor_response and regression_relu / regression_sigmoid
         }
     elif model == "rnn":

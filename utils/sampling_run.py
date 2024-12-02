@@ -151,7 +151,7 @@ def generate_points_based_on_distance(tolerance, aoi_shp, total_points, distance
     return points  # Return the list of generated points
 
 def sampling(project_name,process_folder,aoi_files,output_n,output_n_m,percent,distance,
-    value_ranges_vegh,value_ranges_tcd,vegh_files,tcd_files,**kwargs):
+    value_ranges_raster1,value_ranges_raster2,raster_files1,raster_files2,**kwargs):
 
     tolerance = 2
     output_folder = f"{process_folder}/results/_SamplingPoints/{project_name}"
@@ -161,12 +161,12 @@ def sampling(project_name,process_folder,aoi_files,output_n,output_n_m,percent,d
     #print(tcd_files)
     #print(aoi_files)
 
-    if vegh_files is None:
-        vegh_files = [None] * len(aoi_files)
-    if tcd_files is None:
-        tcd_files = [None] * len(aoi_files)
+    if raster_files1 is None:
+        raster_files1 = [None] * len(aoi_files)
+    if raster_files2 is None:
+        raster_files2 = [None] * len(aoi_files)
 
-    for vegh_file, tcd_file, aoi_file, city, year in zip(vegh_files, tcd_files, aoi_files, output_n, output_n_m):
+    for vegh_file, tcd_file, aoi_file, city, year in zip(raster_files1, raster_files2, aoi_files, output_n, output_n_m):
         print(f"started calculating points for {aoi_file}")
 
         if vegh_file == None and tcd_file == None:
@@ -247,7 +247,7 @@ def sampling(project_name,process_folder,aoi_files,output_n,output_n_m,percent,d
                 total_points_vegh = int(total_points * 0.5)
                 total_points_tcd = int(total_points * 0.5)
 
-            points_vegh, ranges_vegh = generate_points(tolerance, vegh_file, aoi_file, total_points_vegh, value_ranges_vegh, distance)
+            points_vegh, ranges_vegh = generate_points(tolerance, vegh_file, aoi_file, total_points_vegh, value_ranges_raster1, distance)
 
             if tcd_file == None:
                 all_points = points_vegh
@@ -256,7 +256,7 @@ def sampling(project_name,process_folder,aoi_files,output_n,output_n_m,percent,d
             else:
                 points_vegh_gdf = gpd.GeoDataFrame(geometry=points_vegh)
                 points_vegh_gdf.sindex
-                points_tcd, ranges_tcd = generate_points(tolerance, tcd_file, aoi_file, total_points_tcd, value_ranges_tcd, distance, existing_points_gdf=points_vegh_gdf)
+                points_tcd, ranges_tcd = generate_points(tolerance, tcd_file, aoi_file, total_points_tcd, value_ranges_raster2, distance, existing_points_gdf=points_vegh_gdf)
                 all_points = points_vegh + points_tcd
                 all_ranges = ranges_vegh + ranges_tcd
 

@@ -26,8 +26,7 @@ def force_sample(preprocess_params):
     time_range = preprocess_params["time_range"]
     preprocess_params["date_ranges"] = [f"{year - int(time_range[0])}-{time_range[1]} {year}-{time_range[1]}" for year in preprocess_params["years"]]
 
-    if preprocess_params["tmp"] == True:
-        force_class(preprocess_params)
+    force_class(preprocess_params)
     sample_to_ref_sepfiles(preprocess_params) # splits for single domain then goes to next
 
 
@@ -213,26 +212,45 @@ def sample_to_ref_sepfiles(preprocess_params, **kwargs):
             # Getting list of all .csv files in the output_folder
             csv_files = [f for f in os.listdir(output_folder_sep) if f.endswith(".csv")]
 
-            # if preprocess_params["split_train"] <= 1:
-            #     # Shuffle the list to ensure random distribution of files
-            #     random.seed(preprocess_params["seed"])  # Set the seed before shuffling
-            #     random.shuffle(csv_files)
-            #     # Calculating split indices
-            #     num_files = len(csv_files)
-            #     train_idx = int(num_files * preprocess_params["split_train"])
-            #     # Splitting files
-            #     train_files = csv_files[:train_idx]
-            #     test_files = csv_files[train_idx:]
-            #     # Moving files
-            #     move_files(output_folder_sep, train_files, train_folder)
-            #     # move_files(valid_files, valid_folder)
-            #     move_files(output_folder_sep, test_files, test_folder)
-            # else:
-            if (folder_name.split("_")[0] == preprocess_params["split_train"]) or ((folder_name.split("_")[0] == "duisburg") and (related_year != 2020)) or ((folder_name.split("_")[0] == "essen") and (related_year != 2020)):
-            #if related_year == preprocess_params["split_train"]:
-                move_files(output_folder_sep, csv_files, test_folder)
+            if preprocess_params["split_train"] <= 1:
+                # Shuffle the list to ensure random distribution of files
+                random.seed(preprocess_params["seed"])  # Set the seed before shuffling
+                random.shuffle(csv_files)
+                # Calculating split indices
+                num_files = len(csv_files)
+                train_idx = int(num_files * preprocess_params["split_train"])
+                # Splitting files
+                train_files = csv_files[:train_idx]
+                test_files = csv_files[train_idx:]
+                # Moving files
+                move_files(output_folder_sep, train_files, train_folder)
+                # move_files(valid_files, valid_folder)
+                move_files(output_folder_sep, test_files, test_folder)
             else:
-                move_files(output_folder_sep, csv_files, train_folder)
+            # if preprocess_params["split_train"] == "2022":
+            #     if (folder_name.split("_")[0] == "duisburg") or (folder_name.split("_")[0] == "essen") or (related_year == 2022):
+            #     #if related_year == preprocess_params["split_train"]:
+            #         move_files(output_folder_sep, csv_files, test_folder)
+            #     else:
+            #         move_files(output_folder_sep, csv_files, train_folder)
+            # elif preprocess_params["split_train"] == "d":
+            #     if (folder_name.split("_")[0] == "duisburg") or ((folder_name.split("_")[0] == "essen") and (related_year != 2020)):
+            #     #if related_year == preprocess_params["split_train"]:
+            #         move_files(output_folder_sep, csv_files, test_folder)
+            #     else:
+            #         move_files(output_folder_sep, csv_files, train_folder)
+            # elif preprocess_params["split_train"] == "e":
+            #     if ((folder_name.split("_")[0] == "duisburg") and (related_year != 2020)) or (folder_name.split("_")[0] == "essen"):
+            #     #if related_year == preprocess_params["split_train"]:
+            #         move_files(output_folder_sep, csv_files, test_folder)
+            #     else:
+            #         move_files(output_folder_sep, csv_files, train_folder)
+            #else:
+                #if (folder_name.split("_")[0] == preprocess_params["split_train"]) or ((folder_name.split("_")[0] == "duisburg") and (related_year != 2020)) or ((folder_name.split("_")[0] == "essen") and (related_year != 2020)):
+                if related_year == preprocess_params["split_train"]:
+                    move_files(output_folder_sep, csv_files, test_folder)
+                else:
+                    move_files(output_folder_sep, csv_files, train_folder)
 
     temp_df = pd.DataFrame(coordinates_list)
     temp_df.to_csv(os.path.join(output_folder, f"meta.csv"), index=False)
