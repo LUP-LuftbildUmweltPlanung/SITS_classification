@@ -7,27 +7,6 @@ from pytorch.models.ClassificationModel import ClassificationModel
 from pytorch.models.transformer.Models import Encoder
 from datetime import datetime, timedelta
 import numpy as np
-def convert_tensor_doy_to_month(doy_tensor):
-    # Starting date is October 1, 2015
-    start_date = datetime(1980, 1, 1)
-    # Define a function to convert scalar days to month index
-    def day_to_month(day):
-        if day == 0:  # Assuming '0' is used for padding and should remain 0
-            return 0
-        date = start_date + timedelta(days=int(day) - 1)
-        return date.month  # Convert to 0-indexed month
-
-    # Vectorize the function so it can be applied elementwise to a tensor
-    v_day_to_month = np.vectorize(day_to_month)
-
-    # Convert PyTorch tensor to NumPy, apply function, and convert back to PyTorch tensor
-    try:
-        doy_numpy = doy_tensor.numpy()
-    except:
-        doy_numpy = doy_tensor.cpu().numpy()
-    month_numpy = v_day_to_month(doy_numpy)
-    month_tensor = torch.from_numpy(month_numpy)
-    return month_tensor
 
 class TransformerEncoder(ClassificationModel):
     def __init__(self, in_channels=13, len_max_seq=100,
@@ -78,13 +57,14 @@ class TransformerEncoder(ClassificationModel):
         if thermal is not None:
             thermal = thermal.long()
             thermal = thermal.cuda()
+            src_pos_month = None
 
-        doy_m = convert_tensor_doy_to_month(doy)
-        src_pos_month = doy_m.long()
-
-        if torch.cuda.is_available():
-            src_pos = src_pos.cuda()
+        else:
+            doy_y = torch.remainder(doy, 365)  #
+            src_pos_month = doy_y.long()
             src_pos_month = src_pos_month.cuda()
+
+        src_pos = src_pos.cuda()
 
         enc_output, enc_slf_attn_list = self.encoder.forward(src_seq=x, src_pos=src_pos, src_pos_month=src_pos_month, src_thermal = thermal, mask_x = mask_x, return_attns=True)
         enc_output = self.outlayernorm(enc_output)

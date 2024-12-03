@@ -246,8 +246,8 @@ def sample_to_ref_sepfiles(preprocess_params, **kwargs):
             #     else:
             #         move_files(output_folder_sep, csv_files, train_folder)
             #else:
-                #if (folder_name.split("_")[0] == preprocess_params["split_train"]) or ((folder_name.split("_")[0] == "duisburg") and (related_year != 2020)) or ((folder_name.split("_")[0] == "essen") and (related_year != 2020)):
-                if related_year == preprocess_params["split_train"]:
+                if ((folder_name.split("_")[0] == "duisburg") and (related_year != 2020)) or ((folder_name.split("_")[0] == "essen") and (related_year != 2020)):
+                #if related_year == preprocess_params["split_train"]:
                     move_files(output_folder_sep, csv_files, test_folder)
                 else:
                     move_files(output_folder_sep, csv_files, train_folder)

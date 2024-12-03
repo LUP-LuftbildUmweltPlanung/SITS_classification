@@ -104,7 +104,7 @@ class Encoder(nn.Module):
             masked_src_pos_month = src_pos_month * non_pad_mask.squeeze(-1)  # Assuming non_pad_mask is broadcastable to src_pos dimensions
             masked_src_pos_month = masked_src_pos_month.long()
             doy_pos_encodings = positional_encoding(masked_src_pos, self.d_model, max_seq_length=self.n_position)
-            month_pos_encodings = positional_encoding(masked_src_pos_month, self.d_model, max_seq_length=13)
+            month_pos_encodings = positional_encoding(masked_src_pos_month, self.d_model, max_seq_length=366)
             enc_output = masked_src_seq + doy_pos_encodings + month_pos_encodings
 
 
