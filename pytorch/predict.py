@@ -7,8 +7,9 @@ Created on Tue Aug 22 20:30:26 2023
 
 from pytorch.train import getModel
 from pytorch.utils.hw_monitor import HWMonitor, disk_info, squeeze_hw_info
-from force.force_class_utils import force_class
-
+from force.force_class_utils_inference import force_class, force_class_pre
+import subprocess
+import time
 import os
 import torch
 import rasterio
@@ -27,6 +28,7 @@ from rasterio.warp import reproject, Resampling
 from rasterio.mask import mask
 
 def predict(args_predict):
+
     preprocess_params = load_preprocess_settings(os.path.dirname(args_predict["model_path"]))
     preprocess_params["aois"] = args_predict["aois"]
 
@@ -50,9 +52,85 @@ def predict(args_predict):
     args_predict["time_range"] = preprocess_params["time_range"]
     args_predict["feature_order"] = preprocess_params["feature_order"]
 
-    if args_predict["reference_folder"] is None:
-        force_class(preprocess_params)
-    predict_init(args_predict)
+    scripts_skel = f"{os.path.dirname(os.path.dirname(os.path.abspath(__file__)))}/force/skel"
+    temp_folder = preprocess_params['process_folder'] + "/temp"
+    project_name = preprocess_params["project_name"]
+    proc_folder = args_predict['process_folder'] + "/results"
+    hyp = load_hyperparametersplus(os.path.dirname(args_predict["model_path"]))
+    args_predict.update(hyp)
+
+    ###LOADING MODEL
+    if args_predict["thermal_time_prediction"] is not None and args_predict["thermal_time"] is not None:
+        print("\nApplying Transformer Model with Thermal Positional Encoding!")
+    else:
+        print("\nApplying Transformer Model with Calendar Positional Encoding!")
+    args_predict['store'] = os.path.dirname(args_predict['model_path'])
+    model_path = args_predict['model_path']
+    model = load_model(model_path,args_predict)
+
+    #preprocess_params["date_ranges"] = ['2015-01-01 2024-12-31']
+    ###save preprocessing settings for prediction
+    os.makedirs(f'{temp_folder}/{project_name}/FORCE', exist_ok=True)
+    # List of keys you want to save
+    keys_to_save = ["time_range","Interpolation","INT_DAY","Sensors","Indices","SPECTRAL_ADJUST","INTERPOLATE","ABOVE_NOISE","BELOW_NOISE","NTHREAD_READ","NTHREAD_COMPUTE","NTHREAD_WRITE","BLOCK_SIZE","band_names","start_doy_month","feature_order","thermal_time"]  # replace these with the actual keys you want to save
+    # Create a new dictionary with only the specified keys
+    filtered_params = {key: preprocess_params[key] for key in keys_to_save if key in preprocess_params}
+    # Save the filtered dictionary to the JSON file
+    with open(f"{temp_folder}/{project_name}/preprocess_settings.json", 'w') as file:
+        json.dump(filtered_params, file, indent=4)
+
+    #subprocess.run(['sudo', 'chmod', '-R', '777', f"{Path(temp_folder).parent}"])
+    subprocess.run(['sudo', 'chmod', '-R', '777', f"{Path(scripts_skel).parent}"])
+    startzeit = time.time()
+    if not args_predict['reference_folder']:
+        for aoi,DATE_RANGE in zip(preprocess_params["aois"], preprocess_params["date_ranges"]):
+            print(f"INFERENCE FOR {aoi} WITHIN TIME RANGE {DATE_RANGE}")
+
+            X_TILES, Y_TILES = force_class_pre(preprocess_params, aoi)
+
+            for idx, (X_TILE, Y_TILE) in enumerate(tqdm(zip(X_TILES, Y_TILES), total=len(X_TILES), desc="Overall Progress (Processing FORCE Tiles)", position=0, leave=True)):
+
+                last_iteration = (idx == len(X_TILES) - 1)
+                force_class(preprocess_params, aoi, DATE_RANGE, X_TILE, Y_TILE)
+
+                if last_iteration:
+                    # create hw_monitor output dir if it doesn't exist
+                    drive_name = ["sdb1"]
+                    Path(os.path.dirname(args_predict['model_path']) + '/hw_monitor').mkdir(parents=True, exist_ok=True)
+                    hw_predict_logs_file = os.path.dirname(args_predict['model_path']) + '/hw_monitor/hw_monitor_predict.csv'
+                    # Instantiate monitor with a 1-second delay between updates
+                    hwmon_p = HWMonitor(1, hw_predict_logs_file, drive_name)
+                    hwmon_p.start()
+                    hwmon_p.start_averaging()
+
+
+                basename = os.path.basename(aoi)
+                args_predict['folder_path'] = f"{temp_folder}/{args_predict['project_name']}/FORCE/{basename}/tiles_tss/X00{X_TILE}_Y00{Y_TILE}"
+
+                tile = args_predict['folder_path']
+                prediction = predict_singlegrid(model, tile, args_predict)
+                reshape_and_save(prediction, tile, args_predict)
+
+                if args_predict["tmp_cleanup"] == True:
+                    for f in os.listdir(args_predict['folder_path']):
+                        if f != "predicted.tif":
+                            os.remove(os.path.join(args_predict['folder_path'], f))
+
+                if last_iteration:
+                    hwmon_p.stop_averaging()
+                    avgs = hwmon_p.get_averages()
+                    squeezed = squeeze_hw_info(avgs)
+                    mean_data = {key: round(value, 1) for key, value in squeezed.items() if "mean" in key}
+                    hwmon_p.stop()
+
+            print(f"##################\nMean Values Hardware Monitoring (Last Tile):\n{mean_data}\n##################")
+            files = glob.glob(f"{temp_folder}/{args_predict['project_name']}/FORCE/{basename}/tiles_tss/X*/predicted.tif")
+            output_filename = f"{proc_folder}/{args_predict['project_name']}/{os.path.basename(aoi.replace('.shp','.tif'))}"
+            mosaic_rasters(files, output_filename)
+    else:
+        predict_csv(args_predict)
+    endzeit = time.time()
+    print("Processing beendet nach "+str((endzeit-startzeit)/60)+" Minuten")
 
 
 def end_padding(batch_tensor, doy_tensor, thermal_tensor=None):
@@ -285,7 +363,7 @@ def read_tif_files(folder_path, order, year, month, day, thermal_dataset=None):
 
 
 def predict_singlegrid(model, tiles, args_predict):
-    print(f"Preprocessing the Data for Prediction ...")
+    #print(f"Preprocessing the Data for Prediction ...")
     # Read TIFF files
     order = args_predict["feature_order"]
     normalizing_factor = args_predict["norm_factor_features"]
@@ -318,9 +396,9 @@ def predict_singlegrid(model, tiles, args_predict):
     device = next(model.parameters()).device
 
     predictions = []
-    print(f"Predicting with Chunksize {chunksize} from {data.shape[0]}")
+    #print(f"Predicting with Chunksize {chunksize} from {data.shape[0]}")
     with torch.no_grad():
-        for i in tqdm(range(0, data.shape[0], chunksize)):
+        for i in tqdm(range(0, data.shape[0], chunksize), desc=f"Predicting FORCE Tile with Chunksize {chunksize}", position=0, leave=False):
             batch = data[i:i + chunksize] * normalizing_factor
             if thermal_dataset is not None:
                 batch_thermal = data_thermal[i:i + chunksize]
@@ -432,42 +510,6 @@ def load_preprocess_settings(model_name):
         hyperparameters = json.load(file)
     return hyperparameters
 
-def predict_raster(args_predict):
-
-    hyp = load_hyperparametersplus(os.path.dirname(args_predict["model_path"]))
-    args_predict.update(hyp)
-    if args_predict["thermal_time_prediction"] is not None and args_predict["thermal_time"] is not None:
-        print("Applying Transformer Model with Thermal Positional Encoding!")
-    else:
-        print("Applying Transformer Model with Calendar Positional Encoding!")
-    args_predict['store'] = os.path.dirname(args_predict['model_path'])
-    # create hw_monitor output dir if it doesn't exist
-    drive_name = ["sdb1"]
-    Path(args_predict['store'] + '/' + args_predict['model'] + '/hw_monitor').mkdir(parents=True, exist_ok=True)
-
-    hw_predict_logs_file = args_predict['store'] + '/' + args_predict['model'] + '/hw_monitor/hw_monitor_predict.csv'
-    # Instantiate monitor with a 1-second delay between updates
-    hwmon_p = HWMonitor(1,hw_predict_logs_file,drive_name)
-    hwmon_p.start()
-    hwmon_p.start_averaging()
-
-    model_path = args_predict['model_path']
-    tiles = args_predict['folder_path']
-    glob_tiles = glob.glob(tiles)
-    model = load_model(model_path,args_predict)
-    for tile in glob_tiles:
-        print("###" * 15)
-        print(f"Started Prediction for Tile {os.path.basename(tile)}")
-        prediction = predict_singlegrid(model,tile,args_predict)
-        reshape_and_save(prediction,tile,args_predict)
-
-
-    hwmon_p.stop_averaging()
-    avgs = hwmon_p.get_averages()
-    squeezed = squeeze_hw_info(avgs)
-    mean_data = {key: round(value, 1) for key, value in squeezed.items() if "mean" in key}
-    print(f"##################\nMean Values Hardware Monitoring (Prediction):\n{mean_data}\n##################")
-    hwmon_p.stop()
 
 def predict_csv(args_predict):
 
@@ -561,26 +603,3 @@ def predict_csv(args_predict):
     # Save to a shapefile
     gdf.to_file(os.path.join(output_path, "predictions.shp"))
     return predictions_df
-
-
-def predict_init(args_predict, **kwargs):
-
-    temp_folder = args_predict['process_folder'] + "/temp"
-    proc_folder = args_predict['process_folder'] + "/results"
-    if not args_predict['reference_folder']:
-        if isinstance(args_predict['aois'], list):
-            for basen in args_predict['aois']:
-                basename = os.path.basename(basen)
-                args_predict['folder_path'] = f"{temp_folder}/{args_predict['project_name']}/FORCE/{basename}/tiles_tss/X*"
-
-                predict_raster(args_predict)
-
-                files = glob.glob(f"{temp_folder}/{args_predict['project_name']}/FORCE/{basename}/tiles_tss/X*/predicted.tif")
-                output_filename = f"{proc_folder}/{args_predict['project_name']}/{os.path.basename(basen.replace('.shp','.tif'))}"
-
-                mosaic_rasters(files, output_filename)
-        else:
-            predict_raster(args_predict)
-
-    else:
-        predict_csv(args_predict)

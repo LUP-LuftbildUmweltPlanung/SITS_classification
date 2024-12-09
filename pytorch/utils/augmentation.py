@@ -316,16 +316,16 @@ def apply_augmentation(X, doy, thermal, p, plotting, time_range):
 
     if torch.rand(1).item() < p:
         # Choose augmentation pattern with equal probability
-        augmentation_patterns = ['single', 'double', 'triple']
-        #augmentation_patterns = ['single', 'double']
+        #augmentation_patterns = ['single', 'double', 'triple']
+        augmentation_patterns = ['single', 'double']
         selected_pattern = np.random.choice(augmentation_patterns)
 
         if selected_pattern == 'single':
             # Apply one of the augmentations chosen randomly
-            aug_type = np.random.choice(['scaling', 'day shifting', 'zero out'])
-            #aug_type = np.random.choice(['zero out', 'day shifting'])
+            #aug_type = np.random.choice(['scaling', 'day shifting', 'zero out'])
+            aug_type = np.random.choice(['zero out', 'day shifting'])
             if aug_type == 'scaling':
-                X_aug = apply_scaling(X_aug, doy_aug, time_range, sigma=0.15)
+                X_aug = apply_scaling(X_aug, doy_aug, time_range, sigma=0.1)
                 method = 'scaling'
             elif aug_type == 'day shifting':
                 if thermal_aug is None:
@@ -334,7 +334,7 @@ def apply_augmentation(X, doy, thermal, p, plotting, time_range):
                     doy_aug, thermal_aug = year_shifting(doy_aug, time_range, shift_range=16, thermal=thermal_aug)
                 method = 'day shifting'
             else:
-                percentage_to_zero = np.random.randint(5, 70)
+                percentage_to_zero = np.random.randint(5, 80)
                 if thermal_aug is None:
                     #X_aug, doy_aug = zero_out_data(X_aug, doy_aug, percentage=percentage_to_zero)
                     X_aug, doy_aug = remove_data_entries(X_aug, doy_aug, percentage=percentage_to_zero)
@@ -345,13 +345,13 @@ def apply_augmentation(X, doy, thermal, p, plotting, time_range):
 
         elif selected_pattern == 'double':
             # Randomly select two augmentations and sort to ensure zero out happens last
-            aug_types = np.random.choice(['scaling', 'day shifting', 'zero out'], size=2, replace=False)
-            #aug_types = np.random.choice(['day shifting', 'zero out'], size=2, replace=False)
+            #aug_types = np.random.choice(['scaling', 'day shifting', 'zero out'], size=2, replace=False)
+            aug_types = np.random.choice(['day shifting', 'zero out'], size=2, replace=False)
             aug_types = sorted(aug_types, key=lambda x: x == 'zero out')  # This ensures zero out is applied last
             methods = []
             for aug in aug_types:
                 if aug == 'scaling':
-                    X_aug = apply_scaling(X_aug, doy_aug, time_range, sigma=0.15)
+                    X_aug = apply_scaling(X_aug, doy_aug, time_range, sigma=0.1)
                     methods.append('scaling')
                 elif aug == 'day shifting':
                     if thermal_aug is None:
@@ -360,7 +360,7 @@ def apply_augmentation(X, doy, thermal, p, plotting, time_range):
                         doy_aug, thermal_aug = year_shifting(doy_aug, time_range, shift_range=16, thermal=thermal_aug)
                     methods.append('day shifting')
                 else:
-                    percentage_to_zero = np.random.randint(5, 70)
+                    percentage_to_zero = np.random.randint(5, 80)
                     if thermal_aug is None:
                         #X_aug, doy_aug = zero_out_data(X_aug, doy_aug, percentage=percentage_to_zero)
                         X_aug, doy_aug = remove_data_entries(X_aug, doy_aug, percentage=percentage_to_zero)
@@ -372,8 +372,8 @@ def apply_augmentation(X, doy, thermal, p, plotting, time_range):
 
         else:
             # Apply all three augmentations, ensuring zero out happens first
-            percentage_to_zero = np.random.randint(5, 70)
-            X_aug = apply_scaling(X_aug, doy_aug, time_range, sigma=0.15)
+            percentage_to_zero = np.random.randint(5, 80)
+            X_aug = apply_scaling(X_aug, doy_aug, time_range, sigma=0.1)
             if thermal_aug is None:
                 doy_aug = year_shifting(doy_aug, time_range, shift_range=16)
             else:
