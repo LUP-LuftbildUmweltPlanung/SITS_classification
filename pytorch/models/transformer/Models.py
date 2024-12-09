@@ -94,7 +94,7 @@ class Encoder(nn.Module):
             masked_src_thermal = (src_thermal * non_pad_mask.squeeze(-1)).long()
             #print(masked_src_thermal[0,:])
             thermal_pos_encodings = positional_encoding(masked_src_thermal, self.d_model, max_seq_length=10000)
-            doy_pos_encodings = positional_encoding(masked_src_pos, self.d_model, max_seq_length=self.n_position)
+            doy_pos_encodings = positional_encoding(masked_src_pos, self.d_model, max_seq_length=10000)
             #print(thermal_pos_encodings[0,:,0])
             #print(doy_pos_encodings[0, :, 0])
             enc_output = masked_src_seq + thermal_pos_encodings + doy_pos_encodings
@@ -103,8 +103,8 @@ class Encoder(nn.Module):
             # -- Forward self.src_word_emb(src_seq)
             masked_src_pos_month = src_pos_month * non_pad_mask.squeeze(-1)  # Assuming non_pad_mask is broadcastable to src_pos dimensions
             masked_src_pos_month = masked_src_pos_month.long()
-            doy_pos_encodings = positional_encoding(masked_src_pos, self.d_model, max_seq_length=self.n_position)
-            month_pos_encodings = positional_encoding(masked_src_pos_month, self.d_model, max_seq_length=366)
+            doy_pos_encodings = positional_encoding(masked_src_pos, self.d_model, max_seq_length=10000)
+            month_pos_encodings = positional_encoding(masked_src_pos_month, self.d_model, max_seq_length=10000)
             enc_output = masked_src_seq + doy_pos_encodings + month_pos_encodings
 
 
