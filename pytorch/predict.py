@@ -32,10 +32,6 @@ def predict(args_predict):
     preprocess_params = load_preprocess_settings(os.path.dirname(args_predict["model_path"]))
     preprocess_params["aois"] = args_predict["aois"]
 
-    assert (preprocess_params["thermal_time"] is None and args_predict["thermal_time_prediction"] is None) or \
-           (preprocess_params["thermal_time"] is not None and args_predict["thermal_time_prediction"] is not None), "Different Positional Encoding used for Training and Prediction"
-    if args_predict["thermal_time_prediction"] is not None:
-        print("Predicting with Thermal Time!")
     if args_predict["years"] == None:
         preprocess_params["years"] = [int(re.search(r'(\d{4})', os.path.basename(f)).group(1)) for f in preprocess_params["aois"] if re.search(r'(\d{4})', os.path.basename(f))]
     else:
@@ -60,6 +56,9 @@ def predict(args_predict):
     args_predict.update(hyp)
 
     ###LOADING MODEL
+    assert (args_predict["thermal_time"] is None and args_predict["thermal_time_prediction"] is None) or \
+           (args_predict["thermal_time"] is not None and args_predict["thermal_time_prediction"] is not None), "Different Positional Encoding used for Training and Prediction"
+
     if args_predict["thermal_time_prediction"] is not None and args_predict["thermal_time"] is not None:
         print("\nApplying Transformer Model with Thermal Positional Encoding!")
     else:
@@ -67,7 +66,14 @@ def predict(args_predict):
     args_predict['store'] = os.path.dirname(args_predict['model_path'])
     model_path = args_predict['model_path']
     model = load_model(model_path,args_predict)
+    model2 = None
 
+    if args_predict['model_path2'] is not None:
+        args_predict2 = args_predict.copy()
+        hyp = load_hyperparametersplus(os.path.dirname(args_predict2["model_path2"]))
+        args_predict2.update(hyp)
+        model_path2 = args_predict2['model_path2']
+        model2 = load_model(model_path2,args_predict2)
     #preprocess_params["date_ranges"] = ['2015-01-01 2024-12-31']
     ###save preprocessing settings for prediction
     os.makedirs(f'{temp_folder}/{project_name}/FORCE', exist_ok=True)
@@ -93,6 +99,12 @@ def predict(args_predict):
                 last_iteration = (idx == len(X_TILES) - 1)
                 force_class(preprocess_params, aoi, DATE_RANGE, X_TILE, Y_TILE)
 
+                basename = os.path.basename(aoi)
+                args_predict['folder_path'] = f"{temp_folder}/{args_predict['project_name']}/FORCE/{basename}/tiles_tss/X00{X_TILE}_Y00{Y_TILE}"
+
+                if not os.path.exists(args_predict['folder_path']):
+                    continue
+
                 if last_iteration:
                     # create hw_monitor output dir if it doesn't exist
                     drive_name = ["sdb1"]
@@ -103,20 +115,22 @@ def predict(args_predict):
                     hwmon_p.start()
                     hwmon_p.start_averaging()
 
-
-                basename = os.path.basename(aoi)
-                args_predict['folder_path'] = f"{temp_folder}/{args_predict['project_name']}/FORCE/{basename}/tiles_tss/X00{X_TILE}_Y00{Y_TILE}"
-
                 tile = args_predict['folder_path']
                 prediction = predict_singlegrid(model, tile, args_predict)
                 reshape_and_save(prediction, tile, args_predict)
+                if args_predict['model_path2'] is not None:
+                    os.rename(f"{args_predict['folder_path']}/predicted.tif", f"{args_predict['folder_path']}/predicted2.tif")
+                    prediction = predict_singlegrid(model2, tile, args_predict2)
+                    reshape_and_save(prediction, tile, args_predict2)
+
 
                 if args_predict["tmp_cleanup"] == True:
                     for f in os.listdir(args_predict['folder_path']):
-                        if f != "predicted.tif":
+                        if (f != "predicted.tif") and (f != "predicted2.tif"):
                             os.remove(os.path.join(args_predict['folder_path'], f))
 
                 if last_iteration:
+                    time.sleep(1)
                     hwmon_p.stop_averaging()
                     avgs = hwmon_p.get_averages()
                     squeezed = squeeze_hw_info(avgs)
@@ -127,8 +141,13 @@ def predict(args_predict):
             files = glob.glob(f"{temp_folder}/{args_predict['project_name']}/FORCE/{basename}/tiles_tss/X*/predicted.tif")
             output_filename = f"{proc_folder}/{args_predict['project_name']}/{os.path.basename(aoi.replace('.shp','.tif'))}"
             mosaic_rasters(files, output_filename)
+            if args_predict['model_path2'] is not None:
+                files2 = glob.glob(f"{temp_folder}/{args_predict['project_name']}/FORCE/{basename}/tiles_tss/X*/predicted2.tif")
+                output_filename2 = f"{proc_folder}/{args_predict['project_name']}/{os.path.basename(aoi.replace('.shp','_ 2.tif'))}"
+                mosaic_rasters(files2, output_filename2)
+
     else:
-        predict_csv(args_predict)
+        predict_csv(model,args_predict)
     endzeit = time.time()
     print("Processing beendet nach "+str((endzeit-startzeit)/60)+" Minuten")
 
@@ -511,19 +530,19 @@ def load_preprocess_settings(model_name):
     return hyperparameters
 
 
-def predict_csv(args_predict):
+def predict_csv(model,args_predict):
 
     output_path = args_predict["reference_folder"]
     reference_folder = args_predict["reference_folder"]
     folder_path = reference_folder+"/sepfiles/test/csv"
     meta_path = reference_folder+"/meta.csv"
 
-    hyp = load_hyperparametersplus(os.path.dirname(args_predict["model_path"]))
-    args_predict.update(hyp)
-    model_path = args_predict['model_path']
-    order = args_predict["feature_order"]
-    model = load_model(model_path, args_predict)
+    # hyp = load_hyperparametersplus(os.path.dirname(args_predict["model_path"]))
+    # args_predict.update(hyp)
+    # model_path = args_predict['model_path']
+    # model = load_model(model_path, args_predict)
 
+    order = args_predict["feature_order"]
     # Load metadata
     metadata_df = pd.read_csv(meta_path)
 
@@ -533,8 +552,8 @@ def predict_csv(args_predict):
     # Iterate over CSV files
     for idx, row in tqdm(metadata_df.iterrows(), total=metadata_df.shape[0]):
     #for idx, row in metadata_df.iterrows():
-        #if (row['aoi'] != "duisburg_2022_extract.shp") and (row['aoi'] != "essen_2022_extract.shp"):
-            #continue
+        if (row['aoi'] != "duisburg_2022_extract.shp") and (row['aoi'] != "essen_2022_extract.shp"):
+            continue
 
         csv_file_path = os.path.join(folder_path, f"{row['global_idx']}.csv")
         if not os.path.exists(csv_file_path):

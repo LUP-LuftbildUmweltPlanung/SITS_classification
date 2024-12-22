@@ -53,7 +53,6 @@ class TransformerEncoder(ClassificationModel):
         #print(seq)
         #src_pos = torch.arange(1, seq + 1, dtype=torch.long).expand(batchsize, seq)
         src_pos = doy.long()
-
         if thermal is not None:
             thermal = thermal.long()
             thermal = thermal.cuda()
