@@ -40,8 +40,8 @@ Specify parameters within the _main_ scripts and execute them:
 Recently Thermal Time for SITS Classification was integrated [Publication](https://arxiv.org/pdf/2203.09175), based on interpolated Soil Temperature Data from [DWD](https://opendata.dwd.de/climate_environment/CDC/grids_germany/daily/soil_temperature_5cm/)
 
 Download most recently updated Thermal Time Raster from [here](https://cloud2.lup-umwelt.de/index.php/s/pM8FaSL5WgjP2PD)
-
-
+ 
+ 
 **There are various entry points and use cases which are briefly presented in the following flowchart:**
 
 To exclude FORCE for Training and use already existing Features & Responses take a look at the example files:
