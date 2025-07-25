@@ -37,6 +37,9 @@ Specify parameters within the _main_ scripts and execute them:
 - class_main_2_train.py
 - class_main_3_predict.py
 
+Recently Thermal Time for SITS Classification was integrated [Publication](https://arxiv.org/pdf/2203.09175), based on interpolated Soil Temperature Data from [DWD](https://opendata.dwd.de/climate_environment/CDC/grids_germany/daily/soil_temperature_5cm/)
+Download most recently updated Thermal Time Raster from [here](https://cloud2.lup-umwelt.de/index.php/s/pM8FaSL5WgjP2PD)
+
 **There are various entry points and use cases which are briefly presented in the following flowchart:**
 
 To exclude FORCE for Training and use already existing Features & Responses take a look at the example files:
@@ -91,7 +94,10 @@ Deep Learning models base their class predictions on probabilities. In addition 
 
 
 ## Versioning
-1.0
+2.0
+
+## Changelog
+2.0: Added Thermal Time for SITS Classification 
 
 
 ## Authors
@@ -104,6 +110,10 @@ This project is licensed under the GNU General Public Licence, Version 3 (GPLv3)
 
 ## Acknowledgments
 
-* Time Series Classification by [Marc Rußwurm](https://github.com/MarcCoru)
+* Time Series Classification based on [Marc Rußwurm](https://github.com/MarcCoru)
 
 https://github.com/MarcCoru/crop-type-mapping
+
+* Thermal Time Integration based on [Joachim Nyborg](https://github.com/jnyborg)
+  
+https://arxiv.org/pdf/2203.09175
