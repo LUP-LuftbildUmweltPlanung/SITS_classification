@@ -318,12 +318,14 @@ def apply_augmentation(X, doy, thermal, p, plotting, time_range):
         # Choose augmentation pattern with equal probability
         #augmentation_patterns = ['single', 'double', 'triple']
         augmentation_patterns = ['single', 'double']
+        #augmentation_patterns = ['single']
         selected_pattern = np.random.choice(augmentation_patterns)
 
         if selected_pattern == 'single':
             # Apply one of the augmentations chosen randomly
             #aug_type = np.random.choice(['scaling', 'day shifting', 'zero out'])
             aug_type = np.random.choice(['zero out', 'day shifting'])
+            #aug_type = np.random.choice(['zero out'])
             if aug_type == 'scaling':
                 X_aug = apply_scaling(X_aug, doy_aug, time_range, sigma=0.1)
                 method = 'scaling'

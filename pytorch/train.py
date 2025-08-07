@@ -162,7 +162,7 @@ def train(trial,args_train):
     print(f"Maximum DOY Sequence Length: {args_train['seqlength']}")
     print(f"Input Dims: {args_train['input_dims']}")
     print(f"Prediction Classes: {len(args_train['classes_lst'])}")
-    print(f"Data Augmentation: {p * 100} % Training Data will be augmented (Single, Double or Triple (30/30/30) of Annual Scaling / DOY Day Shifting / Zero Out")
+    print(f"Data Augmentation: {p * 100} % Training Data will be augmented (Single or Double (50/50) of DOY Day Shifting / Zero Out")
     if include_thermal:
         print(f"Applying Transformer Model with Thermal Positional Encoding!\n-> GDD Path:{args_train['thermal_time']}")
     else:
