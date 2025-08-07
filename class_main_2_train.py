@@ -11,19 +11,19 @@ from pytorch.train import train_init
 
 #FORCE
 preprocess_params = {
-    "project_name" : "class_vh_thermal_3y", #Project Name that will be the name of output folder in temp & result subfolder
+    "project_name" : "class_vc_thermal_test_invekos_ackerone_3y", #Project Name that will be the name of output folder in temp & result subfolder
     "process_folder": "/uge_mount/FORCE/new_struc/process/", # Folder where Data and Results will be processed (will be created if not existing)
-    "aois" : glob.glob(f"/uge_mount/FORCE/new_struc/process/results/_SamplingPoints/uge_vgh_30m_equalized/*extract.shp"),## reference points shape as single file or file list ## should have YYYY in name
+    "aois" : glob.glob(f"/uge_mount/FORCE/new_struc/process/results/_SamplingPoints/uge_vc_30m_equalized_AckerZero/*extract_extract.shp"),## reference points shape as single file or file list ## should have YYYY in name
     "years": None,  ###Oberservation Year (last year of the timeseries), that should be defined for every Point Shapefile - if "None" Years will be extracted from aoi FileName YYYY
     "time_range": ["3", "06-01"],  # [time_range in years, start and end MM-DD for timeseries]
-    "column_name": 'seal', #column name for response variable in points
+    "column_name": 'vc', #column name for response variable in points
     "Interpolation" : False, ## Classification based on not interpolated Data just possible with Transformer
     "INT_DAY" : 10, ## interpolation time steps
     ###########################################
     ########Advanced Parameters################
     ###########################################
     "force_dir": "/force", # mount directory for FORCE-Datacube - should look like /force_mount/FORCE/C1/L2/..
-    "thermal_time": "/uge_mount/FORCE/new_struc/process/data/gdd/concatenated_gdd_start2015_3035.tif", #set None if not using, take care of starting date from gdd -> class_run.py def(calculate_band_index)
+    "thermal_time": "/uge_mount/FORCE/new_struc/process/data/gdd/concatenated_gdd_start20150101_end20250630_3035.tif", #set None if not using, take care of starting date from gdd -> class_run.py def(calculate_band_index), before npy caching the thermal parameter must be the same as for force preprocessing
     "hold": False,  # if True, FORCE cmd must be closed manually ## recommended for debugging FORCE
     "Sensors": "SEN2A SEN2B",  # LND04 LND05 LND07 LND08 LND09 SEN2A SEN2B,
     "Indices": "BLUE GREEN RED NIR SWIR1 SWIR2 RE1 RE2 RE3 BNIR", # Type: Character list. Valid values: {BLUE,GREEN,RED,NIR,SWIR1,SWIR2,RE1,RE2,RE3,BNIR,NDVI,EVI,NBR,NDTI,ARVI,SAVI,SARVI,TC-BRIGHT,TC-GREEN,TC-WET,TC-DI,NDBI,NDWI,MNDWI,NDMI,NDSI,SMA,kNDVI,NDRE1,NDRE2,CIre,NDVIre1,NDVIre2,NDVIre3,NDVIre1n,NDVIre2n,NDVIre3n,MSRre,MSRren,CCI},
@@ -47,7 +47,7 @@ preprocess_params = {
 
 
 args_train = {
-    'epochs': 160,  # number of training epochs
+    'epochs': 120,  # number of training epochs
     'valid_every_n_epochs': 2,  # skip some valid epochs for faster overall training
     'checkpoint_every_n_epochs': 2,  # save checkpoints during training
     'ref_split': 0.8, # split ratio for training, other part is validation
@@ -67,157 +67,5 @@ args_train = {
 
 if __name__ == '__main__':
 
-    #force_sample(preprocess_params) # splits for single domain then goes to next
+    force_sample(preprocess_params) # splits for single domain then goes to next
     train_init(args_train, preprocess_params)
-
-
-    #preprocess_params["project_name"] = "class_cc_thermal_3y"
-    #train_init(args_train, preprocess_params)
-
-    # model_f = "/uge_mount/FORCE/new_struc/process/results/_SITSModels/class_vh_thermal_3y_2022DElo_JoThermalJoAug/transformer"
-    # model_new_f = "/uge_mount/FORCE/new_struc/process/results/_SITSModels/class_vh_thermal_3y_2022DElo_JoThermalJoAug/transformer_normal_Aug"
-    # import os
-    # try:
-    #     #os.rename(refdata_f, refdata_new_f)
-    #     os.rename(model_f, model_new_f)
-    # except OSError as e:
-    #     print(f"Error renaming")
-    # preprocess_params["thermal_time"] = "/uge_mount/FORCE/new_struc/process/data/gdd/concatenated_gdd_start2015_3035.tif"
-    # train_init(args_train, preprocess_params)
-    #
-    #
-    # preprocess_params["tmp"] = False
-    # preprocess_params["split_train"] = "2022"
-    # force_sample(preprocess_params) # splits for single domain then goes to next
-    # train_init(args_train, preprocess_params)
-    #
-    # refdata_f = "/uge_mount/FORCE/new_struc/process/results/_SITSrefdata/class_vh_thermal_3y"
-    # refdata_new_f = "/uge_mount/FORCE/new_struc/process/results/_SITSrefdata/class_vh_thermal_3y_trainNoDuisEssen1822Gießen_noAugjoThermal"
-    # model_f = "/uge_mount/FORCE/new_struc/process/results/_SITSModels/class_vh_thermal_3y"
-    # model_new_f = "/uge_mount/FORCE/new_struc/process/results/_SITSModels/class_vh_thermal_3y_trainNoDuisEssen1822Gießen_noAugjoThermal"
-    #
-    # import os
-    # try:
-    #     os.rename(refdata_f, refdata_new_f)
-    #     os.rename(model_f, model_new_f)
-    # except OSError as e:
-    #     print(f"Error renaming")
-    #
-    # preprocess_params["tmp"] = False
-    # preprocess_params["split_train"] = "guetersloh"
-    #
-    # force_sample(preprocess_params) # splits for single domain then goes to next
-    # train_init(args_train, preprocess_params)
-    #
-    # refdata_f = "/uge_mount/FORCE/new_struc/process/results/_SITSrefdata/class_vh_thermal_3y"
-    # refdata_new_f = "/uge_mount/FORCE/new_struc/process/results/_SITSrefdata/class_vh_thermal_3y_trainNoDuisEssen1822Guetersloh_noAugjoThermal"
-    # model_f = "/uge_mount/FORCE/new_struc/process/results/_SITSModels/class_vh_thermal_3y"
-    # model_new_f = "/uge_mount/FORCE/new_struc/process/results/_SITSModels/class_vh_thermal_3y_trainNoDuisEssen1822Guetersloh_noAugjoThermal"
-    # import os
-    # try:
-    #     os.rename(refdata_f, refdata_new_f)
-    #     os.rename(model_f, model_new_f)
-    # except OSError as e:
-    #     print(f"Error renaming")
-    #
-    #
-    # preprocess_params["split_train"] = "marburg"
-    #
-    # force_sample(preprocess_params)  # splits for single domain then goes to next
-    # train_init(args_train, preprocess_params)
-    #
-    # refdata_f = "/uge_mount/FORCE/new_struc/process/results/_SITSrefdata/class_vh_thermal_3y"
-    # refdata_new_f = "/uge_mount/FORCE/new_struc/process/results/_SITSrefdata/class_vh_thermal_3y_trainNoDuisEssen1822Marburg_noAugjoThermal"
-    # model_f = "/uge_mount/FORCE/new_struc/process/results/_SITSModels/class_vh_thermal_3y"
-    # model_new_f = "/uge_mount/FORCE/new_struc/process/results/_SITSModels/class_vh_thermal_3y_trainNoDuisEssen1822Marburg_noAugjoThermal"
-    # import os
-    # try:
-    #     os.rename(refdata_f, refdata_new_f)
-    #     os.rename(model_f, model_new_f)
-    # except OSError as e:
-    #     print(f"Error renaming")
-    #
-    #
-    # preprocess_params["split_train"] = "vechta"
-    #
-    # force_sample(preprocess_params)  # splits for single domain then goes to next
-    # train_init(args_train, preprocess_params)
-    #
-    # refdata_f = "/uge_mount/FORCE/new_struc/process/results/_SITSrefdata/class_vh_thermal_3y"
-    # refdata_new_f = "/uge_mount/FORCE/new_struc/process/results/_SITSrefdata/class_vh_thermal_3y_trainNoDuisEssen1822Vechta_noAugjoThermal"
-    # model_f = "/uge_mount/FORCE/new_struc/process/results/_SITSModels/class_vh_thermal_3y"
-    # model_new_f = "/uge_mount/FORCE/new_struc/process/results/_SITSModels/class_vh_thermal_3y_trainNoDuisEssen1822Vechta_noAugjoThermal"
-    # import os
-    # try:
-    #     os.rename(refdata_f, refdata_new_f)
-    #     os.rename(model_f, model_new_f)
-    # except OSError as e:
-    #     print(f"Error renaming")
-    #
-    #
-    # preprocess_params["split_train"] = "berlin"
-    #
-    # force_sample(preprocess_params)  # splits for single domain then goes to next
-    # train_init(args_train, preprocess_params)
-    #
-    # refdata_f = "/uge_mount/FORCE/new_struc/process/results/_SITSrefdata/class_vh_thermal_3y"
-    # refdata_new_f = "/uge_mount/FORCE/new_struc/process/results/_SITSrefdata/class_vh_thermal_3y_trainNoDuisEssen1822Berlin_noAugjoThermal"
-    # model_f = "/uge_mount/FORCE/new_struc/process/results/_SITSModels/class_vh_thermal_3y"
-    # model_new_f = "/uge_mount/FORCE/new_struc/process/results/_SITSModels/class_vh_thermal_3y_trainNoDuisEssen1822Berlin_noAugjoThermal"
-    # import os
-    # try:
-    #     os.rename(refdata_f, refdata_new_f)
-    #     os.rename(model_f, model_new_f)
-    # except OSError as e:
-    #     print(f"Error renaming")
-    #
-    #
-    # preprocess_params["split_train"] = "dresden"
-    #
-    # force_sample(preprocess_params)  # splits for single domain then goes to next
-    # train_init(args_train, preprocess_params)
-    #
-    # refdata_f = "/uge_mount/FORCE/new_struc/process/results/_SITSrefdata/class_vh_thermal_3y"
-    # refdata_new_f = "/uge_mount/FORCE/new_struc/process/results/_SITSrefdata/class_vh_thermal_3y_trainNoDuisEssen1822VDresden_noAugjoThermal"
-    # model_f = "/uge_mount/FORCE/new_struc/process/results/_SITSModels/class_vh_thermal_3y"
-    # model_new_f = "/uge_mount/FORCE/new_struc/process/results/_SITSModels/class_vh_thermal_3y_trainNoDuisEssen1822Dresden_noAugjoThermal"
-    # import os
-    # try:
-    #     os.rename(refdata_f, refdata_new_f)
-    #     os.rename(model_f, model_new_f)
-    # except OSError as e:
-    #     print(f"Error renaming")
-    #
-    #
-    # preprocess_params["split_train"] = "d"
-    #
-    # force_sample(preprocess_params)  # splits for single domain then goes to next
-    # train_init(args_train, preprocess_params)
-    #
-    # refdata_f = "/uge_mount/FORCE/new_struc/process/results/_SITSrefdata/class_vh_thermal_3y"
-    # refdata_new_f = "/uge_mount/FORCE/new_struc/process/results/_SITSrefdata/class_vh_thermal_3y_trainNoDuisEssen1822VDuisburg_noAugjoThermal"
-    # model_f = "/uge_mount/FORCE/new_struc/process/results/_SITSModels/class_vh_thermal_3y"
-    # model_new_f = "/uge_mount/FORCE/new_struc/process/results/_SITSModels/class_vh_thermal_3y_trainNoDuisEssen1822Duisburg_noAugjoThermal"
-    # import os
-    # try:
-    #     os.rename(refdata_f, refdata_new_f)
-    #     os.rename(model_f, model_new_f)
-    # except OSError as e:
-    #     print(f"Error renaming")
-    #
-    #
-    # preprocess_params["split_train"] = "e"
-    #
-    # force_sample(preprocess_params)  # splits for single domain then goes to next
-    # train_init(args_train, preprocess_params)
-    #
-    # refdata_f = "/uge_mount/FORCE/new_struc/process/results/_SITSrefdata/class_vh_thermal_3y"
-    # refdata_new_f = "/uge_mount/FORCE/new_struc/process/results/_SITSrefdata/class_vh_thermal_3y_trainNoDuisEssen1822VEssen_noAugjoThermal"
-    # model_f = "/uge_mount/FORCE/new_struc/process/results/_SITSModels/class_vh_thermal_3y"
-    # model_new_f = "/uge_mount/FORCE/new_struc/process/results/_SITSModels/class_vh_thermal_3y_trainNoDuisEssen1822Essen_noAugjoThermal"
-    # import os
-    # try:
-    #     os.rename(refdata_f, refdata_new_f)
-    #     os.rename(model_f, model_new_f)
-    # except OSError as e:
-    #     print(f"Error renaming")

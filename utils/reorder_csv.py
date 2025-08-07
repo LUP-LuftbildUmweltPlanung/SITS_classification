@@ -25,11 +25,12 @@ def count_files_in_directory(directory):
     return len([name for name in os.listdir(directory) if os.path.isfile(os.path.join(directory, name))])
 
 # Define paths
-meta_csv_path = '/uge_mount/FORCE/new_struc/process/result/_SITSrefdata/envilink_vv_3years_09/meta.csv'
-source_folder = '/uge_mount/FORCE/new_struc/process/result/_SITSrefdata/envilink_vv_3years_09/sepfiles'
-new_root_folder = source_folder.replace("envilink_vv_3years_09", "envilink_vv_3years_vechta")
-# User specifies the keyword (e.g., "augsburg" or "2022")
-keyword = 'vechta'  # Change this to your needed filter
+meta_csv_path = '/uge_mount/FORCE/new_struc/process/results/_SITSrefdata/class_seal_3years_notest/meta.csv'
+source_folder = '/uge_mount/FORCE/new_struc/process/results/_SITSrefdata/class_seal_3years_notest/sepfiles'
+new_root_folder = source_folder.replace("class_seal_3years_notest", "class_seal_3years_justfrankfurt_notest")
+
+# User specifies multiple keywords (e.g., "vechta", "marburg", "berlin")
+keywords = ['potsdam', 'leipzig', 'berlin']  # Change this to your needed filters
 
 test_folder_source = os.path.join(source_folder, 'test/csv')
 train_folder_source = os.path.join(source_folder, 'train/csv')
@@ -49,11 +50,12 @@ original_train_count_source = count_files_in_directory(train_folder_source)
 print(f"Original Source: {original_test_count_source} files in 'test', {original_train_count_source} files in 'train'")
 
 # Filter function to determine test set based on 'aoi' column
-def filter_test_set(row, keyword):
-    return keyword.lower() in row['aoi'].lower()
+def filter_test_set(row, keywords):
+    return any(keyword.lower() in row['aoi'].lower() for keyword in keywords)
 
 # Apply filter to determine the test set
-meta_df['is_test'] = meta_df.apply(lambda row: filter_test_set(row, keyword), axis=1)
+meta_df['is_test'] = meta_df.apply(lambda row: filter_test_set(row, keywords), axis=1)
+
 
 # Iterate with progress bar
 for _, row in tqdm(meta_df.iterrows(), total=meta_df.shape[0], desc="Processing files"):

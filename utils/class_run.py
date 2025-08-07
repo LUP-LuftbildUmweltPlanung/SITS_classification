@@ -226,31 +226,81 @@ def sample_to_ref_sepfiles(preprocess_params, **kwargs):
                 move_files(output_folder_sep, train_files, train_folder)
                 # move_files(valid_files, valid_folder)
                 move_files(output_folder_sep, test_files, test_folder)
-            else:
-            # if preprocess_params["split_train"] == "2022":
-            #     if (folder_name.split("_")[0] == "duisburg") or (folder_name.split("_")[0] == "essen") or (related_year == 2022):
-            #     #if related_year == preprocess_params["split_train"]:
-            #         move_files(output_folder_sep, csv_files, test_folder)
-            #     else:
-            #         move_files(output_folder_sep, csv_files, train_folder)
-            # elif preprocess_params["split_train"] == "d":
-            #     if (folder_name.split("_")[0] == "duisburg") or ((folder_name.split("_")[0] == "essen") and (related_year != 2020)):
+            #else:
+            # if preprocess_params["split_train"] == "d":
+            #     if ((folder_name.split("_")[0] == "duisburg") and (related_year != 2020)) or ((folder_name.split("_")[0] == "essen") and (related_year != 2020)):
+            #         continue
+            #     elif (folder_name.split("_")[0] == "duisburg"):
             #     #if related_year == preprocess_params["split_train"]:
             #         move_files(output_folder_sep, csv_files, test_folder)
             #     else:
             #         move_files(output_folder_sep, csv_files, train_folder)
             # elif preprocess_params["split_train"] == "e":
-            #     if ((folder_name.split("_")[0] == "duisburg") and (related_year != 2020)) or (folder_name.split("_")[0] == "essen"):
+            #     if ((folder_name.split("_")[0] == "duisburg") and (related_year != 2020)) or ((folder_name.split("_")[0] == "essen") and (related_year != 2020)):
+            #         continue
+            #     elif (folder_name.split("_")[0] == "essen"):
             #     #if related_year == preprocess_params["split_train"]:
             #         move_files(output_folder_sep, csv_files, test_folder)
             #     else:
             #         move_files(output_folder_sep, csv_files, train_folder)
-            #else:
-                if ((folder_name.split("_")[0] == "duisburg") and (related_year != 2020)) or ((folder_name.split("_")[0] == "essen") and (related_year != 2020)):
+            # elif preprocess_params["split_train"] == "berlin":
+            #     if ((folder_name.split("_")[0] == "duisburg") and (related_year != 2020)) or ((folder_name.split("_")[0] == "essen") and (related_year != 2020)):
+            #         continue
+            #     elif (folder_name.split("_")[0] == "berlin"):
+            #     #if related_year == preprocess_params["split_train"]:
+            #         move_files(output_folder_sep, csv_files, test_folder)
+            #     else:
+            #         move_files(output_folder_sep, csv_files, train_folder)
+            # elif preprocess_params["split_train"] == "dresden":
+            #     if ((folder_name.split("_")[0] == "duisburg") and (related_year != 2020)) or ((folder_name.split("_")[0] == "essen") and (related_year != 2020)):
+            #         continue
+            #     elif (folder_name.split("_")[0] == "dresden"):
+            #     #if related_year == preprocess_params["split_train"]:
+            #         move_files(output_folder_sep, csv_files, test_folder)
+            #     else:
+            #         move_files(output_folder_sep, csv_files, train_folder)
+            # elif preprocess_params["split_train"] == "gießen":
+            #     if ((folder_name.split("_")[0] == "duisburg") and (related_year != 2020)) or ((folder_name.split("_")[0] == "essen") and (related_year != 2020)):
+            #         continue
+            #     elif (folder_name.split("_")[0] == "gießen"):
+            #     #if related_year == preprocess_params["split_train"]:
+            #         move_files(output_folder_sep, csv_files, test_folder)
+            #     else:
+            #         move_files(output_folder_sep, csv_files, train_folder)
+            # elif preprocess_params["split_train"] == "guetersloh":
+            #     if ((folder_name.split("_")[0] == "duisburg") and (related_year != 2020)) or ((folder_name.split("_")[0] == "essen") and (related_year != 2020)):
+            #         continue
+            #     elif (folder_name.split("_")[0] == "guetersloh"):
+            #     #if related_year == preprocess_params["split_train"]:
+            #         move_files(output_folder_sep, csv_files, test_folder)
+            #     else:
+            #         move_files(output_folder_sep, csv_files, train_folder)
+            # elif preprocess_params["split_train"] == "marburg":
+            #     if ((folder_name.split("_")[0] == "duisburg") and (related_year != 2020)) or ((folder_name.split("_")[0] == "essen") and (related_year != 2020)):
+            #         continue
+            #     elif (folder_name.split("_")[0] == "marburg"):
+            #     #if related_year == preprocess_params["split_train"]:
+            #         move_files(output_folder_sep, csv_files, test_folder)
+            #     else:
+            #         move_files(output_folder_sep, csv_files, train_folder)
+            # elif preprocess_params["split_train"] == "vechta":
+            #     if ((folder_name.split("_")[0] == "duisburg") and (related_year != 2020)) or ((folder_name.split("_")[0] == "essen") and (related_year != 2020)):
+            #         continue
+            #     elif (folder_name.split("_")[0] == "vechta"):
+            #     #if related_year == preprocess_params["split_train"]:
+            #         move_files(output_folder_sep, csv_files, test_folder)
+            #     else:
+            #         move_files(output_folder_sep, csv_files, train_folder)
+            # else:
+            #     print("invalid name")
+
+
+            else:
+                #if ((folder_name.split("_")[0] == "duisburg") and (related_year != 2020)) or ((folder_name.split("_")[0] == "essen") and (related_year != 2020)):
                 #if related_year == preprocess_params["split_train"]:
-                    move_files(output_folder_sep, csv_files, test_folder)
-                else:
-                    move_files(output_folder_sep, csv_files, train_folder)
+                    #move_files(output_folder_sep, csv_files, test_folder)
+                #else:
+                move_files(output_folder_sep, csv_files, train_folder)
 
     temp_df = pd.DataFrame(coordinates_list)
     temp_df.to_csv(os.path.join(output_folder, f"meta.csv"), index=False)
