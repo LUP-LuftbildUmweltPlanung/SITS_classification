@@ -134,7 +134,7 @@ def predict(args_predict):
                     reshape_and_save(prediction, tile, args_predict2)
                     os.rename(f"{args_predict['folder_path']}/predicted.tif", f"{args_predict['folder_path']}/predicted2.tif")
                 if (args_predict['model_path2'] is not None) and (args_predict['model_path3'] is not None):
-                    prediction = predict_singlegrid(model2, tile, args_predict2)
+                    prediction = predict_singlegrid(model3, tile, args_predict2)
                     reshape_and_save(prediction, tile, args_predict2)
                     os.rename(f"{args_predict['folder_path']}/predicted.tif", f"{args_predict['folder_path']}/predicted3.tif")
 
