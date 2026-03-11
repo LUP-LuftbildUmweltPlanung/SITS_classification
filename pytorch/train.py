@@ -12,7 +12,7 @@ sys.path.append("./models")
 import numpy as np
 import torch
 import random
-
+import time
 from pathlib import Path
 
 from pytorch.models.TransformerEncoder import TransformerEncoder
@@ -20,7 +20,7 @@ from pytorch.models.multi_scale_resnet import MSResNet
 from pytorch.models.TempCNN import TempCNN
 from pytorch.models.rnn import RNN
 from pytorch.utils.Dataset import Dataset
-from pytorch.utils.trainer import Trainer
+from pytorch.utils.trainer import Trainer, get_underlying_dataset
 from torch.utils.data.sampler import RandomSampler, SequentialSampler
 from pytorch.utils.logger import Logger
 from pytorch.utils.scheduled_optimizer import ScheduledOptim
@@ -39,12 +39,15 @@ def train_init(args_train, preprocess_params):
     args_train["workers"] = 10  # number of CPU workers to load the next batch
 
     args_train["data_root"] = f'{preprocess_params["process_folder"]}/results/_SITSrefdata/{preprocess_params["project_name"]}/sepfiles/train/' # folder with CSV or cached NPY folder
+    args_train["data_root_val"] = f'{preprocess_params["process_folder"]}/results/_SITSrefdata/{preprocess_params["project_name"]}/sepfiles/val/'  # folder with CSV or cached NPY folder
     args_train["store"] = f'{preprocess_params["process_folder"]}/results/_SITSModels/{preprocess_params["project_name"]}/'  # Store Model Data Path
 
     args_train["thermal_time"] = preprocess_params["thermal_time"]
     # create hw_monitor output dir if it doesn't exist
     Path(args_train['store'] + '/' + args_train['model'] + '/hw_monitor').mkdir(parents=True, exist_ok=True)
     args_train["sdb1"] = ["sdb1"]
+    args_train["split_method"] = preprocess_params["split_method"]
+    args_train["split_ratio"] = preprocess_params["split_ratio"]
 
     hw_train_logs_file = args_train['store'] + '/' + args_train['model'] + '/hw_monitor/hw_monitor_train.csv'
     # Instantiate monitor with a 1-second delay between updates
@@ -58,9 +61,13 @@ def train_init(args_train, preprocess_params):
         storage_path = args_train['store'] + args_train['model'] + '/optuna/storage'
         print(storage_path)
         storage = optuna.storages.JournalStorage(optuna.storages.JournalFileStorage(storage_path))
-        study = optuna.create_study(direction="minimize", sampler=optuna.samplers.CmaEsSampler(),pruner=optuna.pruners.MedianPruner(), storage=storage,
+        if args_train['response'] == 'classification':
+            direction = "maximize"
+        else:
+            direction = "minimize"
+        study = optuna.create_study(direction=direction, sampler=optuna.samplers.TPESampler(),pruner=optuna.pruners.MedianPruner(), storage=storage,
                                     study_name=args_train['study_name'])
-        study.optimize(lambda trial: train(trial, args_train), n_trials=100)
+        study.optimize(lambda trial: train(trial, args_train), n_trials=2)
         print(f"Best value: {study.best_value} (params: {study.best_params})")
     else:
         train(None, args_train,)
@@ -94,11 +101,9 @@ def train(trial,args_train):
     if args_train["tune"] == True:
         new_args_tune = hyperparameter_tune(trial, args_train['model'])
         args_train.update(new_args_tune)
-        ref_dataset = prepare_dataset(args_train)
     else:
         new_args = hyperparameter_config(args_train['model'])
         args_train.update(new_args)
-        ref_dataset = prepare_dataset(args_train)
 
         os.makedirs(os.path.join(args_train['store'], args_train['model']), exist_ok=True)
         try:
@@ -110,6 +115,7 @@ def train(trial,args_train):
             json.dump(args_train, file, indent=4)
 
 
+    time.sleep(3)
     hwmon_i.stop_averaging()
     avgs = hwmon_i.get_averages()
     squeezed = squeeze_hw_info(avgs)
@@ -117,19 +123,28 @@ def train(trial,args_train):
     print(f"##################\nMean Values Hardware Monitoring (Preparing Data):\n{mean_data}\n##################")
     hwmon_i.stop()
 
-    #selected_size = int((args['partition'] / 100.0) * len(ref_dataset))
-    selected_size = int(args_train['partition']*len(ref_dataset)/100.0)
-    print("selected_size="+str(selected_size))
+    # load dataset
+    train_dataset = prepare_dataset(args_train)
 
-    remaining_size = len(ref_dataset) - selected_size
-    selected_dataset, _ = torch.utils.data.random_split(ref_dataset, [selected_size, remaining_size])
-    print(f"Selected {args_train['partition']}% of the dataset: {len(selected_dataset)} samples from a total of {len(ref_dataset)} samples.")
+    # validation dataset is not used for final model training"
+    if not args_train["final_training"] and args_train["split_method"] == "user_defined":
+        valid_dataset = prepare_dataset(args_train, split="val")
+    elif not args_train["final_training"] and args_train["split_method"] in ["random", "random_test", "no_split"]:
+        #selected_size = int((args['partition'] / 100.0) * len(ref_dataset))
+        selected_size = int(args_train['partition']*len(train_dataset)/100.0)
+        print("selected_size="+str(selected_size))
 
-    ref_split = args_train['ref_split']
-    #train_size = int(args['ref_split'] * len(selected_dataset))
-    train_size = int(ref_split * len(selected_dataset))
-    valid_size = len(selected_dataset) - train_size
-    train_dataset, valid_dataset = torch.utils.data.random_split(selected_dataset, [train_size, valid_size])
+        remaining_size = len(train_dataset) - selected_size
+        selected_dataset, _ = torch.utils.data.random_split(train_dataset, [selected_size, remaining_size])
+        print(f"Selected {args_train['partition']}% of the dataset: {len(selected_dataset)} samples from a total of {len(train_dataset)} samples.")
+
+        ref_split = args_train['split_ratio']
+        #train_size = int(args['ref_split'] * len(selected_dataset))
+        train_size = int(ref_split * len(selected_dataset))
+        valid_size = len(selected_dataset) - train_size
+        train_dataset, valid_dataset = torch.utils.data.random_split(selected_dataset, [train_size, valid_size])
+    else:
+        valid_dataset = None
 
     p = args_train['augmentation']
     plotting = args_train['augmentation_plot']
@@ -141,24 +156,29 @@ def train(trial,args_train):
                                                   batch_size=args_train['batchsize'], num_workers=args_train['workers'],
                                                   collate_fn=lambda batch: collate_fn(batch, p, plotting, time_range, include_thermal))
 
-    validdataloader = torch.utils.data.DataLoader(dataset=valid_dataset, sampler=SequentialSampler(valid_dataset),
-                                                  batch_size=args_train['batchsize'], num_workers=args_train['workers'],
-                                                  collate_fn=lambda batch: collate_fn_notransform(batch, include_thermal, p=0, plotting=None))
-
-
+    if args_train["final_training"] == True:
+        validdataloader = None
+    else:
+        validdataloader = torch.utils.data.DataLoader(dataset=valid_dataset, sampler=SequentialSampler(valid_dataset),
+                                                      batch_size=args_train['batchsize'], num_workers=args_train['workers'],
+                                                      collate_fn=lambda batch: collate_fn_notransform(batch, include_thermal, p=0, plotting=None))
 
     print(f"Training Sample Size: {len(traindataloader.dataset)}")
-    print(f"Validation Sample Size: {len(validdataloader.dataset)}")
+    if validdataloader is not None:
+        print(f"Validation Sample Size: {len(validdataloader.dataset)}")
 
+    base_dataset = get_underlying_dataset(traindataloader)
     if args_train['model'] in ["transformer"]:
         args_train['seqlength'] = args_train['max_seq_length']
     elif args_train['model'] in ["rnn", "msresnet","tempcnn"]:
-        args_train['seqlength'] = traindataloader.dataset.dataset.dataset.sequencelength
+        args_train['seqlength'] = base_dataset.sequencelength
     # OPTUNA: this is the build_model_custom(trial)
     #model = getModel(args)
-    args_train['nclasses'] = traindataloader.dataset.dataset.dataset.nclasses
-    args_train['input_dims'] = traindataloader.dataset.dataset.dataset.ndims
-    print(f"Exemplary Sequence Length: {traindataloader.dataset.dataset.dataset.sequencelength}")
+    #args_train['nclasses'] = traindataloader.dataset.dataset.dataset.nclasses
+    #args_train['input_dims'] = traindataloader.dataset.dataset.dataset.ndims
+    args_train['nclasses'] = base_dataset.nclasses
+    args_train['input_dims'] = base_dataset.ndims
+    #print(f"Exemplary Sequence Length: {base_dataset.sequencelength}")
     print(f"Maximum DOY Sequence Length: {args_train['seqlength']}")
     print(f"Input Dims: {args_train['input_dims']}")
     print(f"Prediction Classes: {len(args_train['classes_lst'])}")
@@ -172,7 +192,7 @@ def train(trial,args_train):
 
     store = os.path.join(args_train['store'],args_train['model'])
 
-    logger = Logger(columns=["accuracy"], modes=["train", "valid"], rootpath=store)
+    logger = Logger(columns=["accuracy", "mean_f1"], modes=["train", "valid"], rootpath=store)
 
     if args_train['model'] in ["transformer"]:
         optimizer = ScheduledOptim(
@@ -196,17 +216,23 @@ def train(trial,args_train):
         logger=logger,
         optimizer=optimizer,
         response=args_train['response'],
-        norm_factor_response=args_train['norm_factor_response']
+        norm_factor_response=args_train['norm_factor_response'],
+        use_class_weights=args_train['use_class_weights'],
+        validation_metric=args_train['validation_metric']
     )
+
     trainer = Trainer(trial,model,traindataloader,validdataloader,**config)
     logger = trainer.fit()
 
-    validation_metrics = logger.get_data()[logger.get_data()['mode'] == 'valid']
-    if config['response'] == 'classification':
-        return validation_metrics['accuracy'].max()
-    else:
-        return validation_metrics['rmse'].min()
-    pass
+    if not args_train["final_training"]:
+        validation_metrics = logger.get_data()[logger.get_data()['mode'] == 'valid']
+        if config['response'] == 'classification':
+            if args_train['validation_metric'] == 'f1':
+                return validation_metrics['mean_f1'].max()
+            else:  # acc
+                return validation_metrics['accuracy'].max()
+        else:
+            return validation_metrics['rmse'].min()
 
 def getModel(args):
 
@@ -235,15 +261,19 @@ def getModel(args):
 
     return model
 
-def prepare_dataset(args):
+def prepare_dataset(args, split=None):
     assert args['response'] in ["regression_sigmoid", "regression", "regression_relu", "classification"]
 
     if args['response'].startswith("regression"):
         args['classes_lst'] = [0]
     #ImbalancedDatasetSampler
 
-    ref_dataset = Dataset(root=args['data_root'], classes=args['classes_lst'], seed=args['seed'], response=args['response'],
-                          norm=args['norm_factor_features'], norm_response = args['norm_factor_response'], thermal = args["thermal_time"])
+    if split is None:
+        ref_dataset = Dataset(root=args['data_root'], classes=args['classes_lst'], seed=args['seed'], response=args['response'],
+                              norm=args['norm_factor_features'], norm_response=args['norm_factor_response'], thermal=args["thermal_time"])
+    else:
+        ref_dataset = Dataset(root=args['data_root_val'], classes=args['classes_lst'], seed=args['seed'], response=args['response'],
+                              norm=args['norm_factor_features'], norm_response=args['norm_factor_response'], thermal=args["thermal_time"])
 
     return ref_dataset
 

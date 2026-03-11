@@ -19,6 +19,14 @@ import copy
 from tqdm import tqdm
 import optuna
 
+
+def get_underlying_dataset(dataloader):
+    ds = dataloader.dataset
+    while hasattr(ds, "dataset"):
+        ds = ds.dataset
+    return ds
+
+
 class Trainer():
 
     def __init__(self,
@@ -35,17 +43,25 @@ class Trainer():
                  logger=None,
                  response = None,
                  norm_factor_response = None,
+                 use_class_weights = None,
+                 validation_metric = None,
                  **kwargs):
 
         self.norm_factor_response = norm_factor_response
         self.response = response
+        self.use_class_weights = use_class_weights
+        self.validation_metric = validation_metric
         self.epochs = epochs
-        self.batch_size = validdataloader.batch_size
+        self.batch_size = traindataloader.batch_size
         self.traindataloader = traindataloader
         self.validdataloader = validdataloader
-        self.nclasses=traindataloader.dataset.dataset.dataset.nclasses
-        self.sequencelength=traindataloader.dataset.dataset.dataset.sequencelength
-        self.ndims = traindataloader.dataset.dataset.dataset.ndims
+        base_dataset = get_underlying_dataset(traindataloader)
+        self.nclasses = base_dataset.nclasses
+        self.ndims = base_dataset.ndims
+        self.sequencelength = base_dataset.sequencelength
+        #self.nclasses=traindataloader.dataset.dataset.dataset.nclasses
+        #self.sequencelength=traindataloader.dataset.dataset.dataset.sequencelength
+        #self.ndims = traindataloader.dataset.dataset.dataset.ndims
         self.store = store
         self.valid_every_n_epochs = valid_every_n_epochs
         self.logger = logger
@@ -69,6 +85,42 @@ class Trainer():
         self.resumed_run = False
 
         self.epoch = 0
+
+        if self.response == "classification" and self.use_class_weights is not None:
+            self.class_weights = self._compute_class_weights()
+        else:
+            self.class_weights = None
+
+
+    def _compute_class_weights(self):
+        base_dataset = get_underlying_dataset(self.traindataloader)
+
+        # check for subset
+        ds = self.traindataloader.dataset
+        if isinstance(ds, torch.utils.data.Subset):
+            # only use samples from training (random split)
+            labels = base_dataset.y[ds.indices]
+        else:
+            # use all samples (user_defined split)
+            labels = base_dataset.y
+
+        class_counts = np.bincount(labels.astype(int), minlength=self.nclasses).astype(float)
+
+        # classes without samples assigned 0
+        weights = np.zeros(self.nclasses)
+        present = class_counts > 0
+        weights[present] = 1.0 / class_counts[present]
+
+        # normalize over valid classes
+        weights[present] = weights[present] / weights[present].sum() * present.sum()
+        print(f"class distribution: {class_counts}")
+        print(f"class weights:   {weights.round(3)}")
+
+        weights_tensor = torch.FloatTensor(weights)
+        if torch.cuda.is_available():
+            weights_tensor = weights_tensor.cuda()
+
+        return weights_tensor
 
 
     def resume(self, filename):
@@ -102,43 +154,46 @@ class Trainer():
             self.logger.log(stats, self.epoch)
             printer.print(stats, self.epoch, prefix="\n"+"train: ")
 
-            if self.epoch % self.valid_every_n_epochs == 0 or self.epoch==1:
-                self.logger.set_mode("valid")
-                stats = self.valid_epoch(self.validdataloader)
-                #print(stats)
-                self.logger.log(stats, self.epoch)
-                printer.print(stats, self.epoch, prefix="\n"+"vali: ")
-                print("")
-                print("###"*10)
+            # early stoppage is only used when validation data is available
+            if self.validdataloader is not None:
+                if self.epoch % self.valid_every_n_epochs == 0 or self.epoch==1:
+                    self.logger.set_mode("valid")
+                    stats = self.valid_epoch(self.validdataloader)
+                    #print(stats)
+                    self.logger.log(stats, self.epoch)
+                    printer.print(stats, self.epoch, prefix="\n"+"vali: ")
+                    print("")
+                    print("###"*10)
 
-                # Add prune mechanism
-                if self.trial:
-                    if self.response == 'classification':
-                        self.trial.report(stats['accuracy'], self.epoch)
-                    else:
-                        self.trial.report(stats['rmse'], self.epoch)
+                    # Add prune mechanism
+                    if self.trial:
+                        if self.response == 'classification':
+                            metric_value = stats['mean_f1'] if self.validation_metric == 'f1' else stats['accuracy']
+                            self.trial.report(metric_value, self.epoch)
+                        else:
+                            self.trial.report(stats['rmse'], self.epoch)
 
-                    #if self.trial.should_prune():
-                        #raise optuna.exceptions.TrialPruned()
+                        #if self.trial.should_prune():
+                            #raise optuna.exceptions.TrialPruned()
 
-            if self. epoch % self.checkpoint_every_n_epochs ==0:
+                if self.epoch > self.early_stopping_smooth_period and self.check_for_early_stopping(smooth_period=self.early_stopping_smooth_period):
+                    if not self.trial:
+                        print()
+                        print(f"Model did not improve in the last {self.early_stopping_smooth_period} epochs. stopping training...")
+                        print("Saving model to {}".format(self.get_model_name()))
+                        self.snapshot(self.get_model_name())
+                        #torch.save(self.model, self.get_model_name())
+                        print("Saving log to {}".format(self.get_log_name()))
+                        self.logger.get_data().to_csv(self.get_log_name())
+                    return self.logger
+
+            if self.epoch % self.checkpoint_every_n_epochs == 0:
                 if not self.trial:
-                    #print("Saving model to {}".format(self.get_model_name()))
+                    # print("Saving model to {}".format(self.get_model_name()))
                     self.snapshot(self.get_model_name())
-                    #torch.save(self.model, self.get_model_name())
+                    # torch.save(self.model, self.get_model_name())
                     print("Saving log to {}".format(self.get_log_name()))
                     self.logger.get_data().to_csv(self.get_log_name())
-
-            if self.epoch > self.early_stopping_smooth_period and self.check_for_early_stopping(smooth_period=self.early_stopping_smooth_period):
-                if not self.trial:
-                    print()
-                    print(f"Model did not improve in the last {self.early_stopping_smooth_period} epochs. stopping training...")
-                    print("Saving model to {}".format(self.get_model_name()))
-                    self.snapshot(self.get_model_name())
-                    #torch.save(self.model, self.get_model_name())
-                    print("Saving log to {}".format(self.get_log_name()))
-                    self.logger.get_data().to_csv(self.get_log_name())
-                return self.logger
 
 
         return self.logger
@@ -205,7 +260,10 @@ class Trainer():
             #print(inputs.transpose(1,2))
             #print(self.model(inputs.transpose(1,2))[0])
             if self.response == "classification":
-                loss = F.nll_loss(logprobabilities, targets)
+                if self.use_class_weights in ["train", "valid"]:
+                    loss = F.nll_loss(logprobabilities, targets, weight=self.class_weights)
+                else:
+                    loss = F.nll_loss(logprobabilities, targets)
             else:
                 loss = F.mse_loss(logprobabilities.squeeze(1),targets)
                 #loss = F.huber_loss(logprobabilities.squeeze(1), targets, delta=10)
@@ -262,9 +320,12 @@ class Trainer():
 
             # Updating the progress bar with the latest stats (e.g., loss)
             if self.response == "classification":
-                progress_bar.set_postfix(loss=stats["loss"].item(), acc=stats["accuracy"], refresh=True)
+                if self.validation_metric == 'f1':
+                    progress_bar.set_postfix(loss=stats["loss"].item(), mean_f1=stats["mean_f1"], refresh=True)
+                else: # acc
+                    progress_bar.set_postfix(loss=stats["loss"].item(), acc=stats["accuracy"], refresh=True)
             else:
-                progress_bar.set_postfix(loss=stats["loss"].item(), acc=stats["rmse"], refresh=True)
+                progress_bar.set_postfix(loss=stats["loss"].item(), rmse=stats["rmse"], refresh=True)
 
         return stats
 
@@ -295,7 +356,10 @@ class Trainer():
                     logprobabilities, deltas, pts, budget = self.model.forward(inputs.transpose(1, 2))
 
                 if self.response == "classification":
-                    loss = F.nll_loss(logprobabilities, targets)
+                    if self.use_class_weights == "valid":
+                        loss = F.nll_loss(logprobabilities, targets, weight=self.class_weights)
+                    else:
+                        loss = F.nll_loss(logprobabilities, targets)
                 else:
                     loss = F.mse_loss(logprobabilities.squeeze(1),targets)
                     #loss = F.huber_loss(logprobabilities.squeeze(1),targets,delta=10)
@@ -316,7 +380,7 @@ class Trainer():
                     prediction_np = prediction.detach().cpu().numpy()
                     label = targets.detach().cpu().numpy()
                     stats = metric.add(stats)
-                    accuracy_metrics = metric.update_confmat(label, prediction_np)
+                    accuracy_metrics = metric.update_confmat(label, prediction_np, ignore_missing=True)
                     stats["accuracy"] = accuracy_metrics["overall_accuracy"]
                     stats["mean_accuracy"] = accuracy_metrics["accuracy"].mean()
                     stats["mean_recall"] = accuracy_metrics["recall"].mean()

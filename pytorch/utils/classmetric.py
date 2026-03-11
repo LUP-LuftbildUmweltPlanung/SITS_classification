@@ -1,11 +1,10 @@
 import numpy as np
 from sklearn.metrics import mean_squared_error, r2_score
 
-def confusion_matrix_to_accuraccies(confusion_matrix):
+def confusion_matrix_to_accuraccies(confusion_matrix, ignore_missing=False):
 
     confusion_matrix = confusion_matrix.astype(float)
     # sum(0) <- predicted sum(1) ground truth
-
     total = np.sum(confusion_matrix)
     n_classes, _ = confusion_matrix.shape
     overall_accuracy = np.sum(np.diag(confusion_matrix)) / total
@@ -22,6 +21,15 @@ def confusion_matrix_to_accuraccies(confusion_matrix):
 
     # Per class accuracy
     cl_acc = np.diag(confusion_matrix) / (confusion_matrix.sum(1) + 1e-12)
+
+    # exclude classes with no training samples
+    if ignore_missing:
+        # mask for classes with sample points (miminimum of 1 sample point in train or valid)
+        present_mask = (confusion_matrix.sum(axis=1) + confusion_matrix.sum(axis=0)) > 0
+        recall = recall[present_mask]
+        precision = precision[present_mask]
+        f1 = f1[present_mask]
+        cl_acc = cl_acc[present_mask]
 
     return overall_accuracy, kappa, precision, recall, f1, cl_acc
 
@@ -57,15 +65,15 @@ class ClassMetric(object):
 
         return dict((k, np.stack(v).mean()) for k, v in self.store.items())
 
-    def update_confmat(self, target, output):
+    def update_confmat(self, target, output, ignore_missing=False):
         self._update(output, target)
-        return self.accuracy()
+        return self.accuracy(ignore_missing=ignore_missing)
 
     def update_earliness(self,earliness):
         self.earliness_record.append(earliness)
         return np.hstack(self.earliness_record).mean()
 
-    def accuracy(self):
+    def accuracy(self, ignore_missing=False):
         """
         https: // en.wikipedia.org / wiki / Confusion_matrix
         Calculates over all accuracy and per class classification metrics from confusion matrix
@@ -78,7 +86,7 @@ class ClassMetric(object):
         if type(confusion_matrix) == list:
             confusion_matrix = np.array(confusion_matrix)
 
-        overall_accuracy, kappa, precision, recall, f1, cl_acc = confusion_matrix_to_accuraccies(confusion_matrix)
+        overall_accuracy, kappa, precision, recall, f1, cl_acc = confusion_matrix_to_accuraccies(confusion_matrix, ignore_missing=ignore_missing)
 
         return dict(
             overall_accuracy=overall_accuracy,
