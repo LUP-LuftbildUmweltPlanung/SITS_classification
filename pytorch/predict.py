@@ -74,6 +74,12 @@ def predict(args_predict):
         args_predict2.update(hyp)
         model_path2 = args_predict2['model_path2']
         model2 = load_model(model_path2,args_predict2)
+    if (args_predict['model_path2'] is not None) and (args_predict['model_path3'] is not None):
+        args_predict3 = args_predict.copy()
+        hyp = load_hyperparametersplus(os.path.dirname(args_predict3["model_path3"]))
+        args_predict3.update(hyp)
+        model_path3 = args_predict3['model_path3']
+        model3 = load_model(model_path3,args_predict3)
     #preprocess_params["date_ranges"] = ['2015-01-01 2024-12-31']
     ###save preprocessing settings for prediction
     os.makedirs(f'{temp_folder}/{project_name}/FORCE', exist_ok=True)
@@ -121,15 +127,19 @@ def predict(args_predict):
                 tile = args_predict['folder_path']
                 prediction = predict_singlegrid(model, tile, args_predict)
                 reshape_and_save(prediction, tile, args_predict)
+                os.rename(f"{args_predict['folder_path']}/predicted.tif",f"{args_predict['folder_path']}/predicted1.tif")
                 if args_predict['model_path2'] is not None:
-                    os.rename(f"{args_predict['folder_path']}/predicted.tif", f"{args_predict['folder_path']}/predicted2.tif")
                     prediction = predict_singlegrid(model2, tile, args_predict2)
                     reshape_and_save(prediction, tile, args_predict2)
-
+                    os.rename(f"{args_predict['folder_path']}/predicted.tif", f"{args_predict['folder_path']}/predicted2.tif")
+                if (args_predict['model_path2'] is not None) and (args_predict['model_path3'] is not None):
+                    prediction = predict_singlegrid(model3, tile, args_predict2)
+                    reshape_and_save(prediction, tile, args_predict2)
+                    os.rename(f"{args_predict['folder_path']}/predicted.tif", f"{args_predict['folder_path']}/predicted3.tif")
 
                 if args_predict["tmp_cleanup"] == True:
                     for f in os.listdir(args_predict['folder_path']):
-                        if (f != "predicted.tif") and (f != "predicted2.tif"):
+                        if (f != "predicted1.tif") and (f != "predicted2.tif") and (f != "predicted3.tif"):
                             os.remove(os.path.join(args_predict['folder_path'], f))
 
                 if last_iteration:
@@ -144,9 +154,14 @@ def predict(args_predict):
             files = glob.glob(f"{temp_folder}/{args_predict['project_name']}/FORCE/{basename}/tiles_tss/X*/predicted.tif")
             output_filename = f"{proc_folder}/{args_predict['project_name']}/{os.path.basename(aoi.replace('.shp','.tif'))}"
             mosaic_rasters(files, output_filename)
+            
             if args_predict['model_path2'] is not None:
                 files2 = glob.glob(f"{temp_folder}/{args_predict['project_name']}/FORCE/{basename}/tiles_tss/X*/predicted2.tif")
-                output_filename2 = f"{proc_folder}/{args_predict['project_name']}/{os.path.basename(aoi.replace('.shp','_ 2.tif'))}"
+                output_filename2 = f"{proc_folder}/{args_predict['project_name']}/{os.path.basename(aoi.replace('.shp','_2.tif'))}"
+                mosaic_rasters(files2, output_filename2)
+            if (args_predict['model_path2'] is not None) and (args_predict['model_path3'] is not None):
+                files2 = glob.glob(f"{temp_folder}/{args_predict['project_name']}/FORCE/{basename}/tiles_tss/X*/predicted3.tif")
+                output_filename2 = f"{proc_folder}/{args_predict['project_name']}/{os.path.basename(aoi.replace('.shp','_3.tif'))}"
                 mosaic_rasters(files2, output_filename2)
 
     else:
@@ -331,7 +346,7 @@ def load_and_resample_thermal_data(thermal_file_path, bands_data_extent, bands_d
 def read_tif_files(folder_path, order, year, month, day, thermal_dataset=None):
     bands_data = []
     timesteps = []
-    #print(folder_path)
+    # print(folder_path)
     for band in order:
         # Find the file that matches the pattern
         file_pattern = os.path.join(folder_path, f"*{band}_*.tif")
@@ -355,7 +370,51 @@ def read_tif_files(folder_path, order, year, month, day, thermal_dataset=None):
     with rasterio.open(file_path) as src:
         timestamp = src.descriptions  # Assuming you need the first description for DOY
 
-    doa_dates = [datetime.datetime.strptime(str(doa[:8]), '%Y%m%d') for doa in timestamp]
+    #doa_dates = [datetime.datetime.strptime(str(doa[:8]), '%Y%m%d') for doa in timestamp]
+
+    # # Step 1: Convert to date-only values (e.g., 20250804)
+    # doa_dates = [datetime.datetime.strptime(str(doa[:8]), '%Y%m%d') for doa in timestamp]
+    #
+    # # Step 2: Find duplicate date indices
+    # seen = {}
+    # duplicate_indices = []
+    # timestamp = list(timestamp)
+    #
+    # for idx, date in enumerate(doa_dates):
+    #     if date in seen:
+    #         duplicate_indices.append(idx)
+    #     else:
+    #         seen[date] = idx
+    #
+    # if len(duplicate_indices) > 0:
+    #     print("Dublicate timestamps detected ... reducing to distinct daily values ...")
+    #     # Step 3: Remove duplicates
+    #     # Remove from doa_dates and timestamp
+    #     for idx in sorted(duplicate_indices, reverse=True):
+    #         del doa_dates[idx]
+    #         del timestamp[idx]
+    #     # Remove corresponding layers from bands_data (along axis 0)
+    #     bands_data = np.delete(bands_data, duplicate_indices, axis=1)
+
+    #t1 = time.time()
+    # 1) Vectorized “YYYYMMDD” integer conversion
+    #    — no datetime.strptime, no np.char.substr
+    date_only = np.fromiter((int(ts[:8]) for ts in timestamp), dtype=np.int32, count=len(timestamp))
+    #    → array([20220610, 20220610, 20220611, …], dtype=int32)
+    # 2) Find the first index of each unique day
+    _, first_idx, counts = np.unique(date_only, return_index=True, return_counts=True)
+    if counts.max() > 1:
+        print("Duplicate timestamps detected … reducing to distinct daily values …")
+        # 3) Sort to preserve original order, then filter everything
+        keep = np.sort(first_idx)
+        date_only = date_only[keep]  # e.g. array([20220610, 20220611, …])
+        bands_data = [bd[keep] for bd in bands_data]  # filter along axis-0
+    # 4) (Optional) if you really need a plain Python list of ints:
+    date_only = date_only.tolist()
+    # turn ints into datetime.date objects
+    doa_dates = [datetime.datetime.strptime(str(d), '%Y%m%d') for d in date_only]
+    #t2 = time.time()
+    #print(t2-t1)
     # New DOY calculation that resets at the beginning of each year
     # doy = []
     # for doa_date in doa_dates:
@@ -365,15 +424,17 @@ def read_tif_files(folder_path, order, year, month, day, thermal_dataset=None):
     #     doy.append(doy_value)
 
     latest_year = max(doa_dates, key=lambda x: x.year).year
-    start_date = datetime.datetime(latest_year-year, month, day)
+    start_date = datetime.datetime(latest_year - year, month, day)
     doy = [(doa_date - start_date).days + 1 for doa_date in doa_dates]
-
+    #print(len(doa_dates))
+    #print(doa_dates)
+    #print(len(doy))
+    #print(doy)
     # Calculate the spatial extent of bands_data using the transform
     height, width = bands_data[0][0].shape  # Assuming consistent shape for all bands
     min_x, min_y = rasterio.transform.xy(bands_data_transform, height, 0)  # Lower-left corner
     max_x, max_y = rasterio.transform.xy(bands_data_transform, 0, width)  # Upper-right corner
     bands_data_extent = (min_x, min_y, max_x, max_y)
-
 
     # If thermal_file_path is provided, extract thermal data for each pixel and timestep
     if thermal_dataset is not None:
@@ -391,7 +452,6 @@ def read_tif_files(folder_path, order, year, month, day, thermal_dataset=None):
             #print(resampled_thermal_data.shape)
             # Directly assign the resampled thermal data to the thermal_grid since it's aligned
             thermal_grid[t] = resampled_thermal_data[t]
-
     return bands_data, doy, thermal_grid if thermal_dataset is not None else None
 
 
