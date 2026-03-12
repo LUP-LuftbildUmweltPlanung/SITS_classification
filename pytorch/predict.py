@@ -98,7 +98,7 @@ def predict(args_predict):
         for aoi,DATE_RANGE in zip(preprocess_params["aois"], preprocess_params["date_ranges"]):
             print(f"INFERENCE FOR {aoi} WITHIN TIME RANGE {DATE_RANGE}")
 
-            X_TILES, Y_TILES = force_class_pre(preprocess_params, aoi)
+            X_TILES, Y_TILES, aoi = force_class_pre(preprocess_params, aoi)
 
             for idx, (X_TILE, Y_TILE) in enumerate(tqdm(zip(X_TILES, Y_TILES), total=len(X_TILES), desc="Overall Progress (Processing FORCE Tiles)", position=0, leave=True)):
 
@@ -110,7 +110,6 @@ def predict(args_predict):
 
                 last_iteration = (idx == len(X_TILES) - 1)
                 force_class(preprocess_params, aoi, DATE_RANGE, X_TILE, Y_TILE)
-
 
                 if not os.path.exists(args_predict['folder_path']):
                     continue
@@ -152,9 +151,10 @@ def predict(args_predict):
                     hwmon_p.stop()
                     print(f"##################\nMean Values Hardware Monitoring (Last Tile):\n{mean_data}\n##################")
 
-            files = glob.glob(f"{temp_folder}/{args_predict['project_name']}/FORCE/{basename}/tiles_tss/X*/predicted1.tif")
-            output_filename = f"{proc_folder}/{args_predict['project_name']}/{os.path.basename(aoi.replace('.shp','_1.tif'))}"
+            files = glob.glob(f"{temp_folder}/{args_predict['project_name']}/FORCE/{basename}/tiles_tss/X*/predicted.tif")
+            output_filename = f"{proc_folder}/{args_predict['project_name']}/{os.path.basename(aoi.replace('.shp','.tif'))}"
             mosaic_rasters(files, output_filename)
+            
             if args_predict['model_path2'] is not None:
                 files2 = glob.glob(f"{temp_folder}/{args_predict['project_name']}/FORCE/{basename}/tiles_tss/X*/predicted2.tif")
                 output_filename2 = f"{proc_folder}/{args_predict['project_name']}/{os.path.basename(aoi.replace('.shp','_2.tif'))}"
@@ -289,15 +289,27 @@ def load_and_resample_thermal_data(thermal_file_path, bands_data_extent, bands_d
     """
     from shapely.geometry import box
     # Convert doa_dates into a set for quick lookup
-    required_dates = set([datetime.datetime.strptime(str(date), '%Y-%m-%d %H:%M:%S').strftime('%Y%m%d') for date in doa_dates])
+    required_dates = [datetime.datetime.strptime(str(date), '%Y-%m-%d %H:%M:%S').strftime('%Y%m%d') for date in doa_dates]
+
+    from collections import defaultdict
 
     with rasterio.open(thermal_file_path) as thermal_dataset:
-        # Get the band descriptions and map them to their indices
-        band_to_date = {i + 1: thermal_dataset.descriptions[i] for i in range(thermal_dataset.count)}
+        # Create reverse map from date -> list of bands
+        date_to_bands = defaultdict(list)
+        for i, desc in enumerate(thermal_dataset.descriptions):
+            date_to_bands[desc].append(i + 1)
 
-        # Find the bands that match the required doa_dates
-        matched_bands = [band for band, date in band_to_date.items() if date in required_dates]
-
+        # Match each required date to a band, even if duplicated
+        matched_bands = [date_to_bands[date][0] if date_to_bands[date] else None for date in required_dates]
+        print(matched_bands)
+        print(required_dates)
+    # with rasterio.open(thermal_file_path) as thermal_dataset:
+    #     # Get the band descriptions and map them to their indices
+    #
+    #     band_to_date = {i + 1: thermal_dataset.descriptions[i] for i in range(thermal_dataset.count)}
+    #
+    #     # Find the bands that match the required doa_dates
+    #     matched_bands = [band for band, date in band_to_date.items() if date in required_dates]
         if not matched_bands:
             raise ValueError("No matching bands found in the thermal dataset for the provided DOA dates.")
 
@@ -436,7 +448,6 @@ def read_tif_files(folder_path, order, year, month, day, thermal_dataset=None):
 
         # Loop over each timestep and use the resampled thermal data directly
         for t in range(len(doy)):
-            #print(len(doy))
             #print(f"Processing timestep {t + 1}/{len(doy)}")
             #print(resampled_thermal_data.shape)
             # Directly assign the resampled thermal data to the thermal_grid since it's aligned
@@ -488,7 +499,7 @@ def predict_singlegrid(model, tiles, args_predict):
             doy = np.array(doy_single)
             doy = np.tile(doy, (batch.shape[0], 1))
             cls = 1
-            if args_predict["response"] == "classification":
+            if args_predict["response"] == "classification" and args_predict["probability"]:
                 cls = len(args_predict["classes_lst"])
             if not np.any(non_zero_mask):
                 batch_predictions = torch.full((batch.shape[0], cls), -9999, dtype=torch.float32, device=device)
@@ -514,7 +525,7 @@ def predict_singlegrid(model, tiles, args_predict):
                     predictions_non_zero = predictions_non_zero / norm_factor_response
 
                 if args_predict["response"] == "classification" and not args_predict["probability"]:
-                    predictions_non_zero = torch.argmax(predictions_non_zero, dim=1).unsqueeze(1)  # Ensure 2D
+                    predictions_non_zero = torch.argmax(predictions_non_zero, dim=1).unsqueeze(1).float()  # Ensure 2D
 
                 batch_predictions = torch.full((batch.shape[0], *predictions_non_zero.shape[1:]), -9999, dtype=torch.float32, device=device)
                 batch_predictions[non_zero_mask] = predictions_non_zero
@@ -597,8 +608,8 @@ def predict_csv(model,args_predict):
 
     output_path = args_predict["reference_folder"]
     reference_folder = args_predict["reference_folder"]
-    folder_path = reference_folder+"/sepfiles/test/csv"
-    meta_path = reference_folder+"/meta.csv"
+    folder_path = os.path.join(reference_folder, "sepfiles/test/csv")
+    meta_path = os.path.join(reference_folder, "meta.csv")
 
     # hyp = load_hyperparametersplus(os.path.dirname(args_predict["model_path"]))
     # args_predict.update(hyp)
@@ -606,21 +617,32 @@ def predict_csv(model,args_predict):
     # model = load_model(model_path, args_predict)
 
     order = args_predict["feature_order"]
-    # Load metadata
-    metadata_df = pd.read_csv(meta_path)
+    # Load metadata once
+    metadata_df = pd.read_csv(meta_path).set_index("global_idx")
+
+    # load device before loop
+    device = next(model.parameters()).device
+
+    # --- Get test csv ids ---
+    test_ids = sorted(
+        int(f.replace(".csv", ""))
+        for f in os.listdir(folder_path)
+        if f.endswith(".csv")
+    )
+
+    assert len(test_ids) > 0, "No test CSV files found!"
 
     # Prepare a DataFrame to hold all predictions
     predictions_df = pd.DataFrame(columns=['x', 'y', 'label', 'prediction','aoi'])
 
     # Iterate over CSV files
-    for idx, row in tqdm(metadata_df.iterrows(), total=metadata_df.shape[0]):
-    #for idx, row in metadata_df.iterrows():
-        #if (row['aoi'] != "duisburg_2022_extract.shp") and (row['aoi'] != "essen_2022_extract.shp"):
-            #continue
+    for global_idx in tqdm(test_ids, desc="Predicting test samples"):
 
-        csv_file_path = os.path.join(folder_path, f"{row['global_idx']}.csv")
-        if not os.path.exists(csv_file_path):
-            continue  # Skip if file doesn't exist
+        if global_idx not in metadata_df.index:
+            continue  # should not happen
+
+        row = metadata_df.loc[global_idx]
+        csv_file_path = os.path.join(folder_path, f"{global_idx}.csv")
 
         # Read spectral data
         pixel_df = pd.read_csv(csv_file_path)
@@ -640,7 +662,6 @@ def predict_csv(model,args_predict):
         data = data.permute(0, 2, 1)  # This swaps the second and third dimensions
 
         doy = torch.tensor(doy, dtype=torch.long)
-        device = next(model.parameters()).device
         data = data.to(device)  # Move data tensor to the correct device
         doy = doy.to(device)  # Ensure 'doy' tensor is also on the correct device
         # Predict
