@@ -90,7 +90,7 @@ def hyperparameter_tune(trial,model):
                 "warmup": 1000,
                 "partition": 100,# trial.suggest_int("partition", 20, 100, step=10),  # (name, low, high, step)
                 "norm_factor_features": 1e-4, #trial.suggest_float("norm_factor_features", 1e-5, 1e-3, log=True),
-                "norm_factor_response": trial.suggest_categorical("norm_factor_response", ["log10", 1e0, 1e1]),# "log10", #Response Scaling will be done after Caching, Should be None for Classification. Can be a Value e.g. 1e-3, None or "log10"
+                "norm_factor_response": None,# "log10", #Response Scaling will be done after Caching, Should be None for Classification. Can be a Value e.g. 1e-3, None or "log10"
                 ## take cre for norm_factor_response and regression_relu / regression_sigmoid
             }
         elif model == "rnn":

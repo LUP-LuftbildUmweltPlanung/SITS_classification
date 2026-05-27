@@ -1,0 +1,29 @@
+# Initialize MLflow Client
+client = MlflowClient()
+# Define Experiment Name
+experiment_name = "LUBI_V3_1"
+
+# Check if the Experiment Exists
+experiment = client.get_experiment_by_name(experiment_name)
+
+# Restore if it was soft-deleted
+if experiment and experiment.lifecycle_stage == "deleted":
+    print(f" Experiment '{experiment_name}' is soft-deleted. Restoring...")
+    client.restore_experiment(experiment.experiment_id)
+    experiment = client.get_experiment_by_name(experiment_name)
+
+# Create new if not found
+if experiment is None:
+    print(f" Experiment '{experiment_name}' not found! Creating a new one...")
+    experiment_id = client.create_experiment(name=experiment_name)
+    print(f" Created new experiment: {experiment_name} (ID: {experiment_id})")
+else:
+    experiment_id = experiment.experiment_id
+    print(f" Using existing experiment: {experiment_name} (ID: {experiment_id})")
+
+# Set the active experiment
+mlflow.set_experiment(experiment_name)
+
+# Confirm Artifact Location
+experiment = client.get_experiment(experiment_id)
+print(f" Experiment '{experiment_name}' Artifact Location: {experiment.artifact_location}")

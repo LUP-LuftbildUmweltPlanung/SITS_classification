@@ -55,7 +55,8 @@ class Dataset(torch.utils.data.Dataset):
 
     def cache_dataset(self):
         ids = glob.glob(f"{self.trainids}/*.csv")
-        assert len(ids) > 0
+        if len(ids) == 0:
+            raise FileNotFoundError(f"No CSV files found in dataset folder: {self.trainids}")
 
         self.X = list()
         self.doy = list()  # Add a list to store DOY information
@@ -218,7 +219,7 @@ class Dataset(torch.utils.data.Dataset):
         X = X_raw * self.norm if self.norm is not None else X_raw
 
         # Apply normalization to nutzcodes
-        if self.norm_r is None:
+        if self.response == "classification" or self.norm_r is None:
             nutzcodes = nutzcodes_raw
         elif self.norm_r == "log10":
             nutzcodes = np.log10(nutzcodes_raw + 1)

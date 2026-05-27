@@ -27,6 +27,12 @@ from rasterio.merge import merge
 from rasterio.warp import reproject, Resampling
 from rasterio.mask import mask
 
+def sanitize_response_normalization(args):
+    if args.get("response") == "classification" and args.get("norm_factor_response") is not None:
+        print("Ignoring norm_factor_response for classification predictions.")
+        args["norm_factor_response"] = None
+    return args
+
 def predict(args_predict):
 
     preprocess_params = load_preprocess_settings(os.path.dirname(args_predict["model_path"]))
@@ -54,6 +60,7 @@ def predict(args_predict):
     proc_folder = args_predict['process_folder'] + "/results"
     hyp = load_hyperparametersplus(os.path.dirname(args_predict["model_path"]))
     args_predict.update(hyp)
+    sanitize_response_normalization(args_predict)
 
     ###LOADING MODEL
     assert (args_predict["thermal_time"] is None and args_predict["thermal_time_prediction"] is None) or \
@@ -72,12 +79,14 @@ def predict(args_predict):
         args_predict2 = args_predict.copy()
         hyp = load_hyperparametersplus(os.path.dirname(args_predict2["model_path2"]))
         args_predict2.update(hyp)
+        sanitize_response_normalization(args_predict2)
         model_path2 = args_predict2['model_path2']
         model2 = load_model(model_path2,args_predict2)
     if (args_predict['model_path2'] is not None) and (args_predict['model_path3'] is not None):
         args_predict3 = args_predict.copy()
         hyp = load_hyperparametersplus(os.path.dirname(args_predict3["model_path3"]))
         args_predict3.update(hyp)
+        sanitize_response_normalization(args_predict3)
         model_path3 = args_predict3['model_path3']
         model3 = load_model(model_path3,args_predict3)
     #preprocess_params["date_ranges"] = ['2015-01-01 2024-12-31']
