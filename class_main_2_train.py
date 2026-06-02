@@ -67,17 +67,16 @@ args_train = {
     'classes_lst': [0, 1, 2, 3,4 ],
     #'classes_lst': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48], #classification classes
     'use_class_weights': "train", # None: use for balanced datasets, 'train': use for imbalanced dataset, 'valid': only use when train and valid dataset have same imbabalance # only used if response = classification
-    'tune': True,  # Hyperparameter Tune? True: new folder next to the model will be created named optuna. You can easily visualize statistics with optuna-dashboard /path/to/optuna/config
+    'tune': False,  # Hyperparameter Tune? True: new folder next to the model will be created named optuna. You can easily visualize statistics with optuna-dashboard /path/to/optuna/config
     'study_name': "mlflow_embedding_models2", # Name for Hyperparameter Trial
     'seed': 42,  # seed for batching and weight initialization
     'validation_metric': "f1", # metric used for hyperparameter tuning: "f1": use for imbalance data, "acc": use for stratified data -> only used if response = classification
     'max_seq_length': int(preprocess_params["time_range"][0])*366,
     'use_mlflow': True,
-    'mlflow_experiment': preprocess_params["project_name"],
-    'mlflow_run_name': None,
-    'entry_script_path': str(Path(__file__).resolve()),
+    'mlflow_experiment': preprocess_params["project_name"], # mlflow experiment name, if not existing new one will be created
+    'mlflow_run_name': None, # mlflow run name, if not defined, run name will be created with model name and timestamp
 }
 
 if __name__ == '__main__':
-    #force_sample(preprocess_params) # splits for single domain then goes to next
+    force_sample(preprocess_params) # splits for single domain then goes to next
     train_init(args_train, preprocess_params)
