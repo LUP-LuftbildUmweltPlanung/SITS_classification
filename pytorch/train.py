@@ -219,8 +219,9 @@ def get_environment_metadata(project_root):
 
 def get_source_artifact_paths(args_train):
     project_root = Path(__file__).resolve().parents[1]
+    default_entry_script_path = str((project_root / "class_main_2_train.py").resolve())
     source_paths = [
-        args_train.get("entry_script_path"),
+        args_train.get("entry_script_path", default_entry_script_path),
         str(Path(__file__).resolve()),
         str((project_root / "pytorch" / "utils" / "trainer.py").resolve()),
         str((project_root / "pytorch" / "utils" / "mlflow_logger.py").resolve()),
