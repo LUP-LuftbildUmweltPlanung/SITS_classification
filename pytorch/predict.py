@@ -26,6 +26,37 @@ from shapely.geometry import Point
 from rasterio.merge import merge
 from rasterio.warp import reproject, Resampling
 from rasterio.mask import mask
+from pytorch.utils.legacy_compat import install_legacy_pickle_compat
+
+def sanitize_response_normalization(args):
+    if args.get("response") == "classification" and args.get("norm_factor_response") is not None:
+        print("Ignoring norm_factor_response for classification predictions.")
+        args["norm_factor_response"] = None
+    return args
+
+
+MODEL_CONFIG_KEYS = {
+    "model",
+    "response",
+    "nclasses",
+    "input_dims",
+    "seqlength",
+    "hidden_dims",
+    "dropout",
+    "num_layers",
+    "kernel_size",
+    "n_layers",
+    "n_heads",
+}
+
+
+def merge_model_config(args, model_config):
+    if not model_config:
+        return args
+    for key, value in model_config.items():
+        if key in MODEL_CONFIG_KEYS and value is not None:
+            args[key] = value
+    return args
 
 def predict(args_predict):
 
@@ -54,6 +85,7 @@ def predict(args_predict):
     proc_folder = args_predict['process_folder'] + "/results"
     hyp = load_hyperparametersplus(os.path.dirname(args_predict["model_path"]))
     args_predict.update(hyp)
+    sanitize_response_normalization(args_predict)
 
     ###LOADING MODEL
     assert (args_predict["thermal_time"] is None and args_predict["thermal_time_prediction"] is None) or \
@@ -72,12 +104,14 @@ def predict(args_predict):
         args_predict2 = args_predict.copy()
         hyp = load_hyperparametersplus(os.path.dirname(args_predict2["model_path2"]))
         args_predict2.update(hyp)
+        sanitize_response_normalization(args_predict2)
         model_path2 = args_predict2['model_path2']
         model2 = load_model(model_path2,args_predict2)
     if (args_predict['model_path2'] is not None) and (args_predict['model_path3'] is not None):
         args_predict3 = args_predict.copy()
         hyp = load_hyperparametersplus(os.path.dirname(args_predict3["model_path3"]))
         args_predict3.update(hyp)
+        sanitize_response_normalization(args_predict3)
         model_path3 = args_predict3['model_path3']
         model3 = load_model(model_path3,args_predict3)
     #preprocess_params["date_ranges"] = ['2015-01-01 2024-12-31']
@@ -256,11 +290,14 @@ def mosaic_rasters(input_pattern, output_filename):
 def load_model(model_path,args):
 
     # Load a PyTorch model from the given path
-    saved_state = torch.load(model_path)
+    install_legacy_pickle_compat()
+    saved_state = torch.load(model_path, map_location="cpu")
     model_state_dict = saved_state["model_state"]
-    args['nclasses'] = saved_state["nclasses"]
-    args['seqlength'] = args['max_seq_length']
-    args['input_dims'] = saved_state["ndims"]
+    merge_model_config(args, saved_state.get("model_config"))
+    args['nclasses'] = saved_state.get("nclasses", args.get("nclasses"))
+    args['seqlength'] = saved_state.get("sequencelength", args.get('seqlength', args.get('max_seq_length')))
+    args['max_seq_length'] = args['seqlength']
+    args['input_dims'] = saved_state.get("ndims", args.get("input_dims"))
     #print(f"Sequence Length: {args['seqlength']}")
     print(f"Input Dims: {args['input_dims']}")
     print(f"Prediction Classes: {args['nclasses']}")

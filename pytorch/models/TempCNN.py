@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.utils.data
 import os
 from pytorch.models.ClassificationModel import ClassificationModel
+from pytorch.utils.legacy_compat import install_legacy_pickle_compat
 
 """
 Pytorch re-implementation of Pelletier et al. 2019
@@ -51,6 +52,7 @@ class TempCNN(ClassificationModel):
 
     def load(self, path):
         print("loading model from "+path)
+        install_legacy_pickle_compat()
         snapshot = torch.load(path, map_location="cpu")
         model_state = snapshot.pop('model_state', snapshot)
         self.load_state_dict(model_state)
@@ -87,4 +89,3 @@ class FC_BatchNorm_Relu_Dropout(torch.nn.Module):
 class Flatten(nn.Module):
     def forward(self, input):
         return input.view(input.size(0), -1)
-

@@ -45,12 +45,16 @@ class Trainer():
                  norm_factor_response = None,
                  use_class_weights = None,
                  validation_metric = None,
+                 mlflow_logger = None,
+                 checkpoint_metadata = None,
                  **kwargs):
 
         self.norm_factor_response = norm_factor_response
         self.response = response
         self.use_class_weights = use_class_weights
         self.validation_metric = validation_metric
+        self.mlflow_logger = mlflow_logger
+        self.checkpoint_metadata = checkpoint_metadata or {}
         self.epochs = epochs
         self.batch_size = traindataloader.batch_size
         self.traindataloader = traindataloader
@@ -71,6 +75,12 @@ class Trainer():
         self.early_stopping_patience = 6
         self.not_improved_epochs=0
         self.trial = trial
+        self.best_metric_name = self._get_monitored_metric_name() if self.validdataloader is not None else None
+        self.best_metric_mode = "max" if self.response == "classification" else "min"
+        self.best_metric_value = None
+        self.best_epoch = None
+        self.best_stats = None
+        self.best_model_path = self.get_best_model_name() if self.validdataloader is not None else None
         #self.early_stopping_metric="kappa"
 
         if optimizer is None:
@@ -122,6 +132,46 @@ class Trainer():
 
         return weights_tensor
 
+    def _get_monitored_metric_name(self):
+        if self.response == "classification":
+            return "mean_f1" if self.validation_metric == 'f1' else "accuracy"
+        return "rmse"
+
+    def _is_better_metric(self, metric_value):
+        if metric_value is None:
+            return False
+        if self.best_metric_value is None:
+            return True
+        if self.best_metric_mode == "max":
+            return metric_value > self.best_metric_value
+        return metric_value < self.best_metric_value
+
+    def _update_best_model(self, stats):
+        if self.validdataloader is None:
+            return
+
+        metric_value = stats.get(self.best_metric_name)
+        if metric_value is None or not self._is_better_metric(metric_value):
+            return
+
+        self.best_metric_value = float(metric_value)
+        self.best_epoch = self.epoch
+        self.best_stats = {}
+        for key, value in stats.items():
+            if key in ["targets", "inputs"]:
+                continue
+            if hasattr(value, "detach") and hasattr(value, "item"):
+                self.best_stats[key] = float(value.detach().cpu().item())
+            elif isinstance(value, (int, float, np.integer, np.floating)):
+                self.best_stats[key] = float(value)
+            else:
+                self.best_stats[key] = value
+        self.snapshot(self.best_model_path)
+        print(
+            f"Updated best model at epoch {self.best_epoch} "
+            f"with {self.best_metric_name}={self.best_metric_value:.6f}"
+        )
+
 
     def resume(self, filename):
         snapshot = self.model.load(filename)
@@ -140,7 +190,11 @@ class Trainer():
         nclasses=self.nclasses,
         sequencelength=self.sequencelength,
         ndims=self.ndims,
-        logged_data=self.logger.get_data())
+        logged_data=self.logger.get_data(),
+        checkpoint_schema_version=2,
+        model_config=self.checkpoint_metadata.get("model_config"),
+        preprocess_signature=self.checkpoint_metadata.get("preprocess_signature"),
+        mlflow_logging=self.checkpoint_metadata.get("mlflow_logging"))
 
     def fit(self):
         printer = Printer()
@@ -152,6 +206,8 @@ class Trainer():
             stats = self.train_epoch(self.epoch)
             #print(stats)
             self.logger.log(stats, self.epoch)
+            if self.mlflow_logger is not None:
+                self.mlflow_logger.log_metrics(stats, step=self.epoch, prefix="train")
             printer.print(stats, self.epoch, prefix="\n"+"train: ")
 
             # early stoppage is only used when validation data is available
@@ -161,6 +217,9 @@ class Trainer():
                     stats = self.valid_epoch(self.validdataloader)
                     #print(stats)
                     self.logger.log(stats, self.epoch)
+                    if self.mlflow_logger is not None:
+                        self.mlflow_logger.log_metrics(stats, step=self.epoch, prefix="valid")
+                    self._update_best_model(stats)
                     printer.print(stats, self.epoch, prefix="\n"+"vali: ")
                     print("")
                     print("###"*10)
@@ -182,18 +241,26 @@ class Trainer():
                         print(f"Model did not improve in the last {self.early_stopping_smooth_period} epochs. stopping training...")
                         print("Saving model to {}".format(self.get_model_name()))
                         self.snapshot(self.get_model_name())
+                        if self.mlflow_logger is not None:
+                            self.mlflow_logger.log_artifact(self.get_model_name(), artifact_path="checkpoints")
                         #torch.save(self.model, self.get_model_name())
                         print("Saving log to {}".format(self.get_log_name()))
                         self.logger.get_data().to_csv(self.get_log_name())
+                        if self.mlflow_logger is not None:
+                            self.mlflow_logger.log_artifact(self.get_log_name(), artifact_path="logs")
                     return self.logger
 
             if self.epoch % self.checkpoint_every_n_epochs == 0:
                 if not self.trial:
                     # print("Saving model to {}".format(self.get_model_name()))
                     self.snapshot(self.get_model_name())
+                    if self.mlflow_logger is not None:
+                        self.mlflow_logger.log_artifact(self.get_model_name(), artifact_path="checkpoints")
                     # torch.save(self.model, self.get_model_name())
                     print("Saving log to {}".format(self.get_log_name()))
                     self.logger.get_data().to_csv(self.get_log_name())
+                    if self.mlflow_logger is not None:
+                        self.mlflow_logger.log_artifact(self.get_log_name(), artifact_path="logs")
 
 
         return self.logger
@@ -202,7 +269,14 @@ class Trainer():
         log = self.logger.get_data()
         log = log.loc[log["mode"] == "valid"]
 
-        early_stopping_condition = log["loss"].diff()[-smooth_period:].mean() > 0
+        if self.response == "classification":
+            metric = "mean_f1" if self.validation_metric == 'f1' else "accuracy"
+            early_stopping_condition = log[metric].diff()[-smooth_period:].mean() < 0
+
+        else:
+            metric = "rmse"
+            early_stopping_condition = log[metric].diff()[-smooth_period:].mean() > 0
+
 
         if early_stopping_condition:
             self.not_improved_epochs += 1
@@ -219,6 +293,9 @@ class Trainer():
 
     def get_model_name(self):
         return os.path.join(self.store, f"model_e{self.epoch}.pth")
+
+    def get_best_model_name(self):
+        return os.path.join(self.store, "best_model.pth")
 
     def get_log_name(self):
         return os.path.join(self.store, "log.csv")
@@ -410,4 +487,3 @@ class Trainer():
             stats["inputs"] = inputs.cpu().numpy()
 
         return stats
-

@@ -22,7 +22,7 @@ args_predict = {
     'aois': glob.glob("/uge_mount/FORCE/new_struc/process/data/germany_exact_annual/germany_exact_2024.shp"), # aois can be path or list. Path for Force Tile folder or list // process structure and shapefiles must be correct
     #'aois': None,
     'years': None, ###Oberservation Year (last year of the timeseries), that should be defined for every AOI Shapefile - if "None" Years will be extracted from aoi FileName YYYY
-    'reference_folder': None,
+    'reference_folder': "/rvt_mount/process/results/_SITSrefdata/standing_deadwood/",
     #'reference_folder' : "/uge_mount/FORCE/new_struc/process/results/_SITSrefdata/class_vh_thermal_3y_2022DElo_JoThermalJoAug/",#None, #Set Path if you want to predict the Test CSV File /path/to/_SITSrefdata/projectname
     'probability': False, # just gets recognized if classification
     'chunksize': 6000,  # 5years ts -> 2000

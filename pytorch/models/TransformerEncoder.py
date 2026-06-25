@@ -7,6 +7,7 @@ from pytorch.models.ClassificationModel import ClassificationModel
 from pytorch.models.transformer.Models import Encoder
 from datetime import datetime, timedelta
 import numpy as np
+from pytorch.utils.legacy_compat import install_legacy_pickle_compat
 
 class TransformerEncoder(ClassificationModel):
     def __init__(self, in_channels=13, len_max_seq=100,
@@ -41,6 +42,7 @@ class TransformerEncoder(ClassificationModel):
 
         # b,d,t - > b,t,d
         x = x.transpose(1,2)
+        device = x.device
 
         mask_x = x
 
@@ -55,15 +57,15 @@ class TransformerEncoder(ClassificationModel):
         src_pos = doy.long()
         if thermal is not None:
             thermal = thermal.long()
-            thermal = thermal.cuda()
+            thermal = thermal.to(device)
             src_pos_month = None
 
         else:
             doy_y = torch.remainder(doy, 365)  #
             src_pos_month = doy_y.long()
-            src_pos_month = src_pos_month.cuda()
+            src_pos_month = src_pos_month.to(device)
 
-        src_pos = src_pos.cuda()
+        src_pos = src_pos.to(device)
 
         enc_output, enc_slf_attn_list = self.encoder.forward(src_seq=x, src_pos=src_pos, src_pos_month=src_pos_month, src_thermal = thermal, mask_x = mask_x, return_attns=True)
         enc_output = self.outlayernorm(enc_output)
@@ -105,8 +107,8 @@ class TransformerEncoder(ClassificationModel):
 
     def load(self, path):
         print("loading model from "+path)
+        install_legacy_pickle_compat()
         snapshot = torch.load(path, map_location="cpu")
         model_state = snapshot.pop('model_state', snapshot)
         self.load_state_dict(model_state)
         return snapshot
-
