@@ -46,6 +46,7 @@ class Trainer():
                  use_class_weights = None,
                  validation_metric = None,
                  mlflow_logger = None,
+                 checkpoint_metadata = None,
                  **kwargs):
 
         self.norm_factor_response = norm_factor_response
@@ -53,6 +54,7 @@ class Trainer():
         self.use_class_weights = use_class_weights
         self.validation_metric = validation_metric
         self.mlflow_logger = mlflow_logger
+        self.checkpoint_metadata = checkpoint_metadata or {}
         self.epochs = epochs
         self.batch_size = traindataloader.batch_size
         self.traindataloader = traindataloader
@@ -188,7 +190,11 @@ class Trainer():
         nclasses=self.nclasses,
         sequencelength=self.sequencelength,
         ndims=self.ndims,
-        logged_data=self.logger.get_data())
+        logged_data=self.logger.get_data(),
+        checkpoint_schema_version=2,
+        model_config=self.checkpoint_metadata.get("model_config"),
+        preprocess_signature=self.checkpoint_metadata.get("preprocess_signature"),
+        mlflow_logging=self.checkpoint_metadata.get("mlflow_logging"))
 
     def fit(self):
         printer = Printer()

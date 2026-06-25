@@ -7,6 +7,7 @@ from pytorch.models.ClassificationModel import ClassificationModel
 from pytorch.models.transformer.Models import Encoder
 from datetime import datetime, timedelta
 import numpy as np
+from pytorch.utils.legacy_compat import install_legacy_pickle_compat
 
 class TransformerEncoder(ClassificationModel):
     def __init__(self, in_channels=13, len_max_seq=100,
@@ -106,6 +107,7 @@ class TransformerEncoder(ClassificationModel):
 
     def load(self, path):
         print("loading model from "+path)
+        install_legacy_pickle_compat()
         snapshot = torch.load(path, map_location="cpu")
         model_state = snapshot.pop('model_state', snapshot)
         self.load_state_dict(model_state)

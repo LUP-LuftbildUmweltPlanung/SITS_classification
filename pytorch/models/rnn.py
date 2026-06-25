@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import torch.utils.data
 import os
 from pytorch.models.ClassificationModel import ClassificationModel
+from pytorch.utils.legacy_compat import install_legacy_pickle_compat
 
 SEQUENCE_PADDINGS_VALUE=-1
 
@@ -104,6 +105,7 @@ class RNN(ClassificationModel):
 
     def load(self, path):
         print("loading model from "+path)
+        install_legacy_pickle_compat()
         snapshot = torch.load(path, map_location="cpu")
         model_state = snapshot.pop('model_state', snapshot)
         self.load_state_dict(model_state)

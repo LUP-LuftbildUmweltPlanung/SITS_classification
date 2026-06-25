@@ -78,6 +78,8 @@ Within the training script, there are 3 steps with their respective parameter se
 
 The parameters are described in the respective file.
 
+Training runs now also store a self-contained checkpoint metadata block (`model_config`, preprocess signature, MLflow logging context) and an `artifact_manifest.json` with hashes and file sizes for the most important artifacts.
+
 Especially for DeepLearning models Hyperparameters can be crucial. You can either configure them at *config_hyperparameter.py* or try different combinations by setting tune in args_train to True. While tuning hyperparameter a new folder next to the model will be created named optuna. To analyze hyperparameter tuning results open terminal and type the following:
 ```
 conda activate SITSclass
@@ -92,6 +94,54 @@ Additionally, the following settings can be adjusted:
  
 Chunksize can be modified --> A larger chunksize leads to faster calculations but may reach the GPU's limit with longer time series
 Deep Learning models base their class predictions on probabilities. In addition to predicting target classes, the raw value can also be output with the 'probability' parameter.
+
+Prediction prefers the metadata embedded in the checkpoint itself and falls back to the JSON files in the model directory when needed.
+
+### c) Importing Legacy Models Into MLflow
+
+Older checkpoints can be imported into the current MLflow server with:
+
+```
+python scripts/import_legacy_model_to_mlflow.py \
+    --checkpoint /path/to/model.pth \
+    --config-dir /path/to/model_directory \
+    --experiment legacy_models
+```
+
+This creates a new MLflow run for the legacy model and logs:
+
+- the original checkpoint as an artifact
+- an MLflow PyTorch model artifact
+- an import summary with recovered model metadata
+- an artifact manifest with hashes and file sizes
+- any available config files from `--config-dir`
+
+Use `--config-dir` to point to the folder that contains files such as:
+
+- `hyperparameters.json`
+- `preprocess_settings.json`
+- `training_parameters.json`
+- `resolved_hyperparameters.json`
+
+If the old checkpoint does not already contain `model_config`, provide a JSON file with the missing architecture fields by using `--model-config`.
+
+Minimal example for a transformer `model_config.json`:
+
+```json
+{
+    "model": "transformer",
+    "response": "classification",
+    "nclasses": 5,
+    "input_dims": 10,
+    "seqlength": 366,
+    "hidden_dims": 128,
+    "dropout": 0.2,
+    "n_layers": 4,
+    "n_heads": 8
+}
+```
+
+Important: importing a legacy model into MLflow is for tracking and analysis in the MLflow web UI. Prediction in this repository still uses the local `.pth` checkpoint path.
 
 
 

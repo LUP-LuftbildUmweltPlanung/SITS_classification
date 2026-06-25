@@ -9,6 +9,7 @@ Created on Tue Aug 22 20:30:26 2023
 import sys
 sys.path.append("./models")
 
+import hashlib
 import numpy as np
 import torch
 import random
@@ -38,6 +39,16 @@ import optuna
 from optuna.trial import TrialState
 from torch.nn.utils.rnn import pad_sequence
 from pytorch.utils.augmentation import time_warp, plot, apply_scaling, apply_augmentation
+
+SENSITIVE_KEY_PARTS = (
+    "password",
+    "secret",
+    "token",
+    "key",
+    "credential",
+    "access_key",
+    "private",
+)
 
 def sanitize_response_normalization(args):
     if args.get('response') == 'classification' and args.get('norm_factor_response') is not None:
@@ -93,10 +104,28 @@ def to_serializable(value):
     return str(value)
 
 
+def is_sensitive_key(key):
+    key_str = str(key).lower()
+    return any(part in key_str for part in SENSITIVE_KEY_PARTS)
+
+
+def sanitize_for_logging(value, parent_key=None):
+    if parent_key is not None and is_sensitive_key(parent_key):
+        return "***REDACTED***"
+    if isinstance(value, dict):
+        return {
+            str(key): sanitize_for_logging(val, parent_key=key)
+            for key, val in value.items()
+        }
+    if isinstance(value, (list, tuple, set)):
+        return [sanitize_for_logging(item, parent_key=parent_key) for item in value]
+    return to_serializable(value)
+
+
 def write_json(path, payload):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, 'w') as file:
-        json.dump(to_serializable(payload), file, indent=4, sort_keys=True)
+        json.dump(sanitize_for_logging(payload), file, indent=4, sort_keys=True)
 
 
 def summarize_numeric_row(row):
@@ -217,6 +246,50 @@ def get_environment_metadata(project_root):
     return environment
 
 
+def get_model_config(args):
+    model_config = {
+        "model": args["model"],
+        "response": args["response"],
+        "nclasses": args["nclasses"],
+        "input_dims": args["input_dims"],
+        "seqlength": args["seqlength"],
+        "hidden_dims": args["hidden_dims"],
+        "dropout": args["dropout"],
+    }
+    if args["model"] == "rnn":
+        model_config["num_layers"] = args["num_layers"]
+    elif args["model"] == "tempcnn":
+        model_config["kernel_size"] = args["kernel_size"]
+    elif args["model"] == "transformer":
+        model_config["n_layers"] = args["n_layers"]
+        model_config["n_heads"] = args["n_heads"]
+    return model_config
+
+
+def get_preprocess_signature(preprocess_params):
+    return {
+        "time_range": preprocess_params.get("time_range"),
+        "feature_order": preprocess_params.get("feature_order"),
+        "interpolation": preprocess_params.get("Interpolation"),
+        "interpolate_mode": preprocess_params.get("INTERPOLATE"),
+        "int_day": preprocess_params.get("INT_DAY"),
+        "thermal_time": preprocess_params.get("thermal_time"),
+        "start_doy_month": preprocess_params.get("start_doy_month"),
+        "split_method": preprocess_params.get("split_method"),
+        "split_ratio": preprocess_params.get("split_ratio"),
+        "column_name": preprocess_params.get("column_name"),
+    }
+
+
+def get_mlflow_logging_context(args_train):
+    return {
+        "use_mlflow": args_train.get("use_mlflow", False),
+        "tracking_uri": args_train.get("mlflow_tracking_uri"),
+        "experiment_name": args_train.get("mlflow_experiment"),
+        "run_name": args_train.get("mlflow_run_name"),
+    }
+
+
 def get_source_artifact_paths(args_train):
     project_root = Path(__file__).resolve().parents[1]
     default_entry_script_path = str((project_root / "class_main_2_train.py").resolve())
@@ -236,6 +309,37 @@ def get_source_artifact_paths(args_train):
             unique_paths.append(path)
             seen.add(path)
     return unique_paths
+
+
+def build_artifact_manifest(store, entries):
+    manifest_entries = []
+    for entry in entries:
+        local_path = entry.get("path")
+        if not local_path or not os.path.exists(local_path):
+            continue
+        file_hash = hashlib.sha256()
+        with open(local_path, "rb") as file_obj:
+            for chunk in iter(lambda: file_obj.read(1024 * 1024), b""):
+                file_hash.update(chunk)
+        manifest_entries.append(
+            {
+                "category": entry.get("category"),
+                "artifact_path": entry.get("artifact_path"),
+                "basename": os.path.basename(local_path),
+                "local_path": local_path,
+                "size_bytes": os.path.getsize(local_path),
+                "sha256": file_hash.hexdigest(),
+            }
+        )
+    manifest = {
+        "schema_version": 1,
+        "generated_at_utc": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+        "artifact_count": len(manifest_entries),
+        "artifacts": manifest_entries,
+    }
+    manifest_path = os.path.join(store, "artifact_manifest.json")
+    write_json(manifest_path, manifest)
+    return manifest_path
 
 
 def prepare_run_artifacts(args_train, preprocess_params, trial=None):
@@ -315,6 +419,9 @@ def prepare_run_artifacts(args_train, preprocess_params, trial=None):
         "resolved_hyperparameters": resolved_hyperparameters,
         "training_parameters": training_parameters,
         "source_paths": get_source_artifact_paths(args_train),
+        "model_config": get_model_config(args_train),
+        "preprocess_signature": get_preprocess_signature(preprocess_params),
+        "mlflow_logging": get_mlflow_logging_context(args_train),
     }
 
 def train_init(args_train, preprocess_params):
@@ -650,7 +757,12 @@ def train(trial,args_train):
         response=args_train['response'],
         norm_factor_response=args_train['norm_factor_response'],
         use_class_weights=args_train['use_class_weights'],
-        validation_metric=args_train['validation_metric']
+        validation_metric=args_train['validation_metric'],
+        checkpoint_metadata={
+            "model_config": run_artifacts["model_config"],
+            "preprocess_signature": run_artifacts["preprocess_signature"],
+            "mlflow_logging": run_artifacts["mlflow_logging"],
+        },
     )
 
     trainer = Trainer(trial,model,traindataloader,validdataloader, mlflow_logger=mlflow_logger, **config)
@@ -749,6 +861,33 @@ def train(trial,args_train):
             mlflow_logger.log_artifact(metrics_summary_path, artifact_path=f"{trial_artifact_path}/logs")
             if trainer.best_model_path is not None and os.path.exists(trainer.best_model_path):
                 mlflow_logger.log_artifact(trainer.best_model_path, artifact_path=f"{trial_artifact_path}/models")
+
+        manifest_entries = [
+            {"path": run_artifacts["preprocess_settings_path"], "artifact_path": "config", "category": "config"},
+            {"path": run_artifacts["preprocess_runtime_path"], "artifact_path": "config", "category": "config"},
+            {"path": run_artifacts["hyperparameters_path"], "artifact_path": "config", "category": "config"},
+            {"path": run_artifacts["training_parameters_path"], "artifact_path": "config", "category": "config"},
+            {"path": run_artifacts["resolved_hyperparameters_path"], "artifact_path": "config", "category": "config"},
+            {"path": run_artifacts["run_context_path"], "artifact_path": "config", "category": "config"},
+            {"path": final_log_path, "artifact_path": "logs", "category": "metrics"},
+            {"path": final_model_path, "artifact_path": "models", "category": "model"},
+            {"path": best_model_summary_path, "artifact_path": "models", "category": "model"},
+            {"path": metrics_summary_path, "artifact_path": "logs", "category": "metrics"},
+        ]
+        if run_artifacts["optuna_trial_path"] is not None:
+            manifest_entries.append(
+                {"path": run_artifacts["optuna_trial_path"], "artifact_path": "optuna", "category": "optuna"}
+            )
+        if trainer.best_model_path is not None and os.path.exists(trainer.best_model_path):
+            manifest_entries.append(
+                {"path": trainer.best_model_path, "artifact_path": "models", "category": "model"}
+            )
+        for source_path in run_artifacts["source_paths"]:
+            manifest_entries.append(
+                {"path": source_path, "artifact_path": "source", "category": "source"}
+            )
+        artifact_manifest_path = build_artifact_manifest(store, manifest_entries)
+        mlflow_logger.log_artifact(artifact_manifest_path, artifact_path="meta")
 
         mlflow_logger.end_run(status="FINISHED")
     except Exception:

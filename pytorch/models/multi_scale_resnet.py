@@ -3,6 +3,7 @@ import torch.nn.functional as Functional
 from pytorch.models.ClassificationModel import ClassificationModel
 import torch
 import os
+from pytorch.utils.legacy_compat import install_legacy_pickle_compat
 
 """
 from
@@ -288,11 +289,11 @@ class MSResNet(ClassificationModel):
 
     def load(self, path):
         print("loading model from "+path)
+        install_legacy_pickle_compat()
         snapshot = torch.load(path, map_location="cpu")
         model_state = snapshot.pop('model_state', snapshot)
         self.load_state_dict(model_state)
         return snapshot
-
 
 
 
